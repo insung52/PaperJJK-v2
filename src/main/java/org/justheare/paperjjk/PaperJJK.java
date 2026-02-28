@@ -1,0 +1,59 @@
+package org.justheare.paperjjk;
+
+import org.bukkit.plugin.java.JavaPlugin;
+import org.justheare.paperjjk.network.JEntityManager;
+import org.justheare.paperjjk.network.JPacketHandler;
+import org.justheare.paperjjk.scheduler.WorkScheduler;
+
+public class PaperJJK extends JavaPlugin {
+
+    public static PaperJJK instance;
+
+    @Override
+    public void onEnable() {
+        instance = this;
+
+        // JEntityManager 초기화
+        JEntityManager.init();
+
+        // 플레이어 데이터 로드 (playerdata.yml)
+        JData.init(getDataFolder());
+
+        // WorkScheduler 시작 (모든 스킬 틱 관리)
+        WorkScheduler.getInstance().start();
+
+        // 이벤트 리스너 등록
+        getServer().getPluginManager().registerEvents(new JEvent(), this);
+
+        // 커맨드 등록
+        var cmd = getCommand("jjk");
+        if (cmd != null) {
+            Jcommand handler = new Jcommand();
+            cmd.setExecutor(handler);
+            cmd.setTabCompleter(handler);
+        }
+
+        // Plugin Messaging Channel 등록
+        getServer().getMessenger().registerIncomingPluginChannel(
+                this, JPacketHandler.CHANNEL, new JPacketHandler(this));
+        getServer().getMessenger().registerOutgoingPluginChannel(
+                this, JPacketHandler.CHANNEL);
+
+        getLogger().info("PaperJJK v2 enabled.");
+    }
+
+    @Override
+    public void onDisable() {
+        // 모든 플레이어 데이터 저장
+        JData.saveAll();
+
+        WorkScheduler.getInstance().stop();
+        getServer().getMessenger().unregisterIncomingPluginChannel(this);
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this);
+        getLogger().info("PaperJJK v2 disabled.");
+    }
+
+    public static void log(String msg) {
+        instance.getLogger().info(msg);
+    }
+}

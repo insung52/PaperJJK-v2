@@ -1,0 +1,9 @@
+name: PaperJJK-v2
+version: '${version}'
+main: org.justheare.paperjjk.PaperJJK
+api-version: '1.21'
+commands:
+  jjk:
+    description: jjk plugin setting
+    usage: /jjk
+    aliases: [JJK]
