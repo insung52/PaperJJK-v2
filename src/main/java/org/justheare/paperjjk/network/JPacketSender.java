@@ -73,6 +73,7 @@ public class JPacketSender {
         out.writeBoolean(jp.reverseOutput != null);
         out.writeInt(0); // domainLevel — 추후 구현
         out.writeInt(jp.cursedEnergy.getEfficiencyLevel());
+        out.writeBoolean(jp.canGraspAirSurface);
 
         // 슬롯 1-4 (X, C, V, B) 스킬 ID
         out.writeUTF(slotId(jp, SkillKey.X));

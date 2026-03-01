@@ -7,6 +7,7 @@ import org.bukkit.SoundCategory;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
+import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.technique.InfinityTechnique;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -171,6 +172,9 @@ public class JPlayer extends JEntity {
     public void onTick() {
         // maxOutput이 현재 CE에 선형 비례하므로 매 틱 bodyReinMax 갱신
         syncBodyReinMax();
+        if(!player.isOnGround()&&player.isSneaking()){
+            player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 2, 0));
+        }
         super.onTick();
 
         // CE_UPDATE 주기 전송 (5틱마다)
@@ -304,7 +308,7 @@ public class JPlayer extends JEntity {
      * 대쉬. Space 입력 시 호출.
      * 신체강화 주력 전량 소모 → 바라보는 방향으로 velocity 적용.
      *
-     * 지상 여부 판정:
+     * onGround: 클라이언트에서 전달받은 값 (핑 오차 없음, 서버 isOnGround() 대체)
      *   - 지상: 정상 속도
      *   - 공중 + canGraspAirSurface=false: 대쉬 불가 (return)
      *   - 공중 + canGraspAirSurface=true : 속도 30% (공기의 면을 포착)
@@ -312,15 +316,12 @@ public class JPlayer extends JEntity {
      * Infinity: ao(무한) 활용 고속이동 → 속도 1.5배
      * 일반: 1.0 + log₂(bodyReinCurrent + 1) × 0.2
      */
-    public void dash() {
-        boolean onGround = player.isOnGround();
-
+    public void dash(boolean onGround) {
         // 공중에서 canGraspAirSurface 없으면 대쉬 불가
         if (!onGround && !canGraspAirSurface) return;
-
         double bodyReinCurrent = bodyReinforcement.getCurrent();
-
-        double log2val   = Math.log(bodyReinCurrent + 1) / Math.log(2);
+        double log2val   = Math.pow(bodyReinCurrent + 1,0.5);
+        PaperJJK.log("what"+ log2val);
         double dashSpeed = 1.0 + log2val * 0.2;
 
         // Infinity 술식은 ao 특성으로 속도 1.5배

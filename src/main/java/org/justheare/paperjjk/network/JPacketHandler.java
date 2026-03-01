@@ -182,12 +182,13 @@ public class JPacketHandler implements PluginMessageListener {
         }
     }
 
-    // ── DASH (0x10, C2S): [] ─────────────────────────────────────────────
+    // ── DASH (0x10, C2S): [onGround(1)] ──────────────────────────────────
 
     private void handleDash(Player player, ByteArrayDataInput in) {
+        boolean onGround = in.readBoolean(); // 클라이언트 측 onGround (핑 오차 없음)
         JPlayer jp = getJPlayer(player);
         if (jp == null) return;
-        jp.dash();
+        jp.dash(onGround);
     }
 
     // ── BODY_REIN_KEY (0x0F): [action(1)] [mode(1)] ───────────────────────
