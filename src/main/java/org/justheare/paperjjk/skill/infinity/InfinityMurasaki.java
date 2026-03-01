@@ -407,12 +407,19 @@ public class InfinityMurasaki extends ActiveSkill {
         if (block.isEmpty()) return 0f;
         if (block.isLiquid()) {
             block.setType(Material.AIR);
-            return 0.3f;
+            return 0.03f;
         }
         float h = block.getType().getHardness();
-        if (h < 0) return 50f;  // 깨지지 않는 블록 (베드락 등) → 에너지 완전 차단
-        block.setType(Material.AIR);
-        return Math.max(h, 0.1f);
+        if(h>=0){
+            if(h<energy){
+                block.setType(Material.AIR);
+                return h;
+            }
+            return h;
+        }
+        else {
+            return 1000;
+        }
     }
 
     // ── 데미지 ────────────────────────────────────────────────────────────
