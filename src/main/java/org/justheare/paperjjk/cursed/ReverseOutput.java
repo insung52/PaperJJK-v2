@@ -12,8 +12,15 @@ public class ReverseOutput {
 
     private boolean active = false;
 
-    /** 소모 주력 → 회복 체력 효율 */
-    private static final double HEAL_EFFICIENCY = 0.01;
+    /** 소리 재생 주기 카운터 (10틱마다 소리 재생) */
+    private int soundTick = 0;
+
+    /**
+     * 반전술식 치료 공식: log₂(소모CE + 1) × HEAL_LOG_SCALE = 틱당 회복 HP.
+     * Grade 3 풀(소모≈4): log₂(5)×0.15 ≈ 0.80 HP/틱
+     * Mizushi 풀(소모≈4M): log₂(4M+1)×0.15 ≈ 3.3 HP/틱
+     */
+    private static final double HEAL_LOG_SCALE = 0.15;
 
     /** 술식에 RCT 적용 시 출력 배율 (최소 2배) */
     private static final double RCT_MULTIPLIER = 2.0;
@@ -22,9 +29,13 @@ public class ReverseOutput {
 
     public void start() { active = true; }
 
-    public void stop() { active = false; }
+    public void stop() { active = false; soundTick = 0; }
 
     public boolean isActive() { return active; }
+
+    public int getSoundTick() { return soundTick; }
+
+    public void incrementSoundTick() { soundTick++; }
 
     // ── 틱 처리 ───────────────────────────────────────────────────────────
 
@@ -46,7 +57,7 @@ public class ReverseOutput {
         return RCT_MULTIPLIER;
     }
 
-    public double getHealEfficiency() {
-        return HEAL_EFFICIENCY;
+    public double getHealLogScale() {
+        return HEAL_LOG_SCALE;
     }
 }

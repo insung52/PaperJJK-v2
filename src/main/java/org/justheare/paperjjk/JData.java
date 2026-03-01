@@ -30,6 +30,9 @@ public class JData {
         public double currentCE = 200.0;
         public boolean canReverseOutput = false;
         public int blackFlashLifeTimeCount = 0;
+        /** -1 = 술식 기본값 사용 (setTechnique 에 위임) */
+        public int efficiencyLevel = -1;
+        public boolean canGraspAirSurface = false;
         public Map<String, Double> mahoragaAdaptMap = null; // null = 없음
     }
 
@@ -83,6 +86,8 @@ public class JData {
         d.currentCE = dataConfig.getDouble(p + ".currentCE", d.maxCE);
         d.canReverseOutput = dataConfig.getBoolean(p + ".canReverseOutput", false);
         d.blackFlashLifeTimeCount = dataConfig.getInt(p + ".blackFlashLifeTimeCount", 0);
+        d.efficiencyLevel = dataConfig.getInt(p + ".efficiencyLevel", -1);
+        d.canGraspAirSurface = dataConfig.getBoolean(p + ".canGraspAirSurface", false);
 
         // Mahoraga 적응 데이터
         String mahoPath = p + ".mahoraga";
@@ -121,6 +126,8 @@ public class JData {
         dataConfig.set(p + ".currentCE", jp.cursedEnergy.getCurrent());
         dataConfig.set(p + ".canReverseOutput", jp.reverseOutput != null);
         dataConfig.set(p + ".blackFlashLifeTimeCount", jp.blackFlash.getLifeTimeCount());
+        dataConfig.set(p + ".efficiencyLevel", jp.cursedEnergy.getEfficiencyLevel());
+        dataConfig.set(p + ".canGraspAirSurface", jp.canGraspAirSurface);
 
         // Mahoraga 적응 데이터
         if (jp.technique instanceof MahoragaTechnique mt) {
@@ -156,6 +163,8 @@ public class JData {
     }
 
     // ── 유틸 ──────────────────────────────────────────────────────────────
+
+    public static String toTechniqueIdPublic(JPlayer jp) { return toTechniqueId(jp); }
 
     private static String toTechniqueId(JPlayer jp) {
         if (jp.technique == null) return "";

@@ -104,7 +104,7 @@ public abstract class JEntity {
         List<ChargingRequest> requests = buildChargingRequests();
         cursedEnergy.distributeOutput(requests, getHealthPercent());
         for (ChargingRequest req : requests) {
-            req.skill.applyCharge(req.actualCharged);
+            req.chargeCallback.accept(req.actualCharged);
         }
 
         // 신체강화 틱
@@ -133,15 +133,22 @@ public abstract class JEntity {
     }
 
     /** 충전 중인 스킬들로부터 ChargingRequest 목록 생성 */
-    private List<ChargingRequest> buildChargingRequests() {
+    protected List<ChargingRequest> buildChargingRequests() {
         List<ChargingRequest> requests = new ArrayList<>();
         for (ActiveSkill skill : activeSkills) {
             if (skill.isCharging()) {
                 requests.add(new ChargingRequest(skill, skill.getPerTickChargeRequest()));
             }
         }
+        addAdditionalChargeRequests(requests);
         return requests;
     }
+
+    /**
+     * 스킬 외 CE 소비자 등록 훅 (신체강화 등).
+     * 서브클래스(JPlayer)에서 override.
+     */
+    protected void addAdditionalChargeRequests(List<ChargingRequest> requests) {}
 
     // ── 데미지 ────────────────────────────────────────────────────────────
 

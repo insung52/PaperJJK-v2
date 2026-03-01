@@ -1,6 +1,7 @@
 package org.justheare.paperjjk.skill;
 
 import org.justheare.paperjjk.entity.JEntity;
+import org.justheare.paperjjk.network.PacketIds;
 
 /**
  * 실행 중인 술식(스킬)의 추상 기반.
@@ -27,6 +28,9 @@ public abstract class ActiveSkill implements SkillExecution {
 
     /** 현재까지 누적된 충전량 (충전 중에 distributeOutput 결과로 증가) */
     private double accumulatedCharge = 0;
+
+    /** 재충전 중 여부 (발동 후 재홀드 → true, stopCharging() 시 false) */
+    private boolean recharging = false;
 
     private static final int PRIORITY_NORMAL = 1;
 
@@ -59,6 +63,7 @@ public abstract class ActiveSkill implements SkillExecution {
         if (phase != SkillPhase.CHARGING) return;
         chargedOutput = accumulatedCharge;
         phase = SkillPhase.ACTIVE;
+        recharging = false;
         onCharged();
     }
 
@@ -115,6 +120,7 @@ public abstract class ActiveSkill implements SkillExecution {
         if (phase == SkillPhase.ACTIVE) {
             accumulatedCharge = 0;
             phase = SkillPhase.CHARGING;
+            recharging = true;
         }
     }
 
@@ -131,6 +137,46 @@ public abstract class ActiveSkill implements SkillExecution {
      * 지원하는 스킬에서 override — 예: InfinityAo 의 시선 고정 토글.
      */
     public void onControl() {}
+
+    /**
+     * 슬롯 위에 자물쇠 아이콘을 표시할지 여부.
+     * SKILL_CONTROL 로 고정 상태가 된 스킬 (InfinityAo fixed=true 등) 에서 override.
+     */
+    public boolean isLocked() { return false; }
+
+    /**
+     * 슬롯 위에 표시할 짧은 레이블 (빈 문자열 = 표시 없음).
+     * 거리 조정 스킬: "3m", "50m" / 방향 토글 스킬: "↑", "↓"
+     */
+    public String getSlotLabel() { return ""; }
+
+    // ── HUD 게이지 (클라이언트 전송용) ───────────────────────────────────
+
+    /**
+     * 슬롯 게이지 퍼센트 (0.0~1.0). SLOT_GAUGE_UPDATE 패킷에 사용.
+     *
+     * 기본값: CE 누적량 기반 (퍼틱 요청량 × 40틱 = 100%).
+     * 각 스킬은 override 하여 자신의 실제 파워 비율을 반환해야 함.
+     * 예) InfinityAo: CHARGING → chargeDurationTicks / 100, ACTIVE → remainingPower / 100
+     */
+    public float getGaugePercent() {
+        return switch (phase) {
+            case CHARGING -> (float) Math.min(1.0, accumulatedCharge / Math.max(1e-9, perTickChargeRequest * 40));
+            case ACTIVE   -> (float) Math.min(1.0, chargedOutput    / Math.max(1e-9, perTickChargeRequest * 40));
+            case ENDED    -> 0.0f;
+        };
+    }
+
+    /**
+     * 슬롯 게이지 상태 바이트. SLOT_GAUGE_UPDATE 패킷에 사용.
+     */
+    public byte getSlotGaugeState() {
+        return switch (phase) {
+            case CHARGING -> recharging ? PacketIds.SlotGaugeState.RECHARGING : PacketIds.SlotGaugeState.CHARGING;
+            case ACTIVE   -> PacketIds.SlotGaugeState.ACTIVE;
+            case ENDED    -> PacketIds.SlotGaugeState.NONE;
+        };
+    }
 
     // ── 조회 ──────────────────────────────────────────────────────────────
 

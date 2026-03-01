@@ -1,5 +1,6 @@
 package org.justheare.paperjjk.damage;
 
+import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.entity.JEntity;
 
 /**
@@ -70,10 +71,16 @@ public class DamagePipeline {
             info.attackOutput *= (1.0 - techniqueDefence.reductionRatio);
         }
 
-        // 신체강화 감소 (PHYSICAL 계열만)
-        if (info.type == DamageType.PHYSICAL) {
-            double reduction = victim.bodyReinforcement.getDamageReduction();
-            info.attackOutput = Math.max(0, info.attackOutput - reduction);
+        // 신체강화 방어 (PHYSICAL 계열 + 신체강화 활성화 시)
+        // absorbed = min(공격주력, 신체강화주력) → 신체강화가 실제로 흡수한 양만큼 소모
+        // remaining = max(0, 공격주력 - 신체강화주력) → 통과한 피해
+        if (info.type == DamageType.PHYSICAL && victim.bodyReinforcement.isActive()) {
+            double bodyReinCurrent = victim.bodyReinforcement.getCurrent();
+            double absorbed  = Math.min(info.attackOutput, bodyReinCurrent);
+            double remaining = Math.max(0, info.attackOutput - bodyReinCurrent);
+            victim.bodyReinforcement.consume(absorbed); // 흡수한 만큼 신체강화 소모
+            PaperJJK.logDamage(absorbed+" : "+ bodyReinCurrent+" : " + remaining);
+            info.attackOutput = remaining;
         }
 
         // 영역 필중 + BITEN 방어
@@ -112,8 +119,8 @@ public class DamagePipeline {
                 + " suppressWasStillTrue=" + wasStillSet
                 + " noDmgTicks(after)=" + victim.getLivingEntity().getNoDamageTicks());
 
-        // 주력 감소
-        victim.cursedEnergy.forceConsume(info.attackOutput);
+        // 주력 감소 — 피해로 인한 CE 감소는 효율 미적용 (rawForceConsume)
+        victim.cursedEnergy.rawForceConsume(info.attackOutput);
 
         return new DamageResult(false, finalDamage, info.attackOutput, info.isBlackFlash);
     }

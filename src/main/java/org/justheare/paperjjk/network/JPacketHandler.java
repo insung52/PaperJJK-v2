@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.jetbrains.annotations.NotNull;
+import org.justheare.paperjjk.entity.BodyReinMode;
 import org.justheare.paperjjk.entity.JPlayer;
 import org.justheare.paperjjk.skill.*;
 
@@ -41,6 +42,8 @@ public class JPacketHandler implements PluginMessageListener {
                 case PacketIds.SKILL_DISTANCE          -> handleDistance(player, in);
                 case PacketIds.SKILL_CONTROL           -> handleControl(player, in);
                 case PacketIds.SKILL_RCT               -> handleRct(player, in);
+                case PacketIds.BODY_REIN_KEY           -> handleBodyReinKey(player, in);
+                case PacketIds.DASH                    -> handleDash(player, in);
                 case PacketIds.HANDSHAKE               -> handleHandshake(player, in);
                 case PacketIds.PLAYER_INFO_REQUEST     -> handlePlayerInfoRequest(player, in);
                 default -> logger.warning(String.format("[Packet] Unknown: 0x%02X from %s", packetId, player.getName()));
@@ -176,6 +179,32 @@ public class JPacketHandler implements PluginMessageListener {
             jp.reverseOutput.start();
         } else {
             jp.reverseOutput.stop();
+        }
+    }
+
+    // ── DASH (0x10, C2S): [] ─────────────────────────────────────────────
+
+    private void handleDash(Player player, ByteArrayDataInput in) {
+        JPlayer jp = getJPlayer(player);
+        if (jp == null) return;
+        jp.dash();
+    }
+
+    // ── BODY_REIN_KEY (0x0F): [action(1)] [mode(1)] ───────────────────────
+
+    private void handleBodyReinKey(Player player, ByteArrayDataInput in) {
+        byte action = in.readByte();
+        byte modeId = in.readByte();
+
+        JPlayer jp = getJPlayer(player);
+        if (jp == null) return;
+
+        if (action == PacketIds.SkillAction.START) {
+            BodyReinMode mode = (modeId == PacketIds.BodyReinAction.BITEN)
+                    ? BodyReinMode.BITEN : BodyReinMode.NORMAL;
+            jp.handleBodyReinKey(true, mode);
+        } else {
+            jp.handleBodyReinKey(false, BodyReinMode.NONE);
         }
     }
 

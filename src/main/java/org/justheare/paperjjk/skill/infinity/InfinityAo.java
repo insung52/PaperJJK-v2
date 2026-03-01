@@ -408,6 +408,30 @@ public class InfinityAo extends ActiveSkill {
         fixed = !fixed;
     }
 
+    // ── HUD 게이지 / 슬롯 표시 ───────────────────────────────────────────
+
+    /**
+     * 이 스킬의 실제 파워 비율(0~1)을 반환.
+     * CHARGING/RECHARGING: 현재까지 쌓인 예상 파워 / 100
+     * ACTIVE: 잔여 파워 / 100 (소진될수록 줄어듦)
+     */
+    @Override
+    public float getGaugePercent() {
+        return switch (getPhase()) {
+            case CHARGING -> (float) Math.min(1.0, currentPowerEstimate() / 100.0);
+            case ACTIVE   -> (float) Math.max(0.0, remainingPower / 100.0);
+            case ENDED    -> 0.0f;
+        };
+    }
+
+    /** 시선 고정(fixed) 상태이면 자물쇠 표시 */
+    @Override
+    public boolean isLocked() { return fixed; }
+
+    /** 현재 설정된 거리값 (예: "3m", "50m") */
+    @Override
+    public String getSlotLabel() { return String.format("%.0fm", distance); }
+
     // ── 유틸 ─────────────────────────────────────────────────────────────
 
     /** remainingPower(0~100) → 클라이언트 strength(0.051~5.0) */

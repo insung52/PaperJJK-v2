@@ -6,6 +6,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.entity.JPlayer;
+import org.justheare.paperjjk.entity.BodyReinforcement;
 import org.justheare.paperjjk.skill.SkillKey;
 import org.justheare.paperjjk.skill.SkillSlot;
 
@@ -71,6 +72,7 @@ public class JPacketSender {
         out.writeInt((int) jp.cursedEnergy.getMax());
         out.writeBoolean(jp.reverseOutput != null);
         out.writeInt(0); // domainLevel — 추후 구현
+        out.writeInt(jp.cursedEnergy.getEfficiencyLevel());
 
         // 슬롯 1-4 (X, C, V, B) 스킬 ID
         out.writeUTF(slotId(jp, SkillKey.X));
@@ -95,6 +97,33 @@ public class JPacketSender {
     private static String slotId(JPlayer jp, SkillKey key) {
         SkillSlot slot = jp.skillKeyMap.getSlot(key);
         return slot != null ? slot.skillId : "";
+    }
+
+    // ── SLOT_GAUGE_UPDATE (0x30) ──────────────────────────────────────────
+    // 슬롯 X/C/V/B 의 상태·게이지·자물쇠·레이블을 한 패킷에 전송.
+    // 각 슬롯: [state(1)][gauge(1, 0~100)][locked(1 boolean)][label(UTF)]
+
+    public static void sendSlotGaugeUpdate(Player player, byte[] states, float[] gauges,
+                                           boolean[] locked, String[] labels) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.SLOT_GAUGE_UPDATE);
+        for (int i = 0; i < 4; i++) {
+            out.writeByte(states[i]);
+            out.writeByte((byte)(int)(Math.max(0f, Math.min(1f, gauges[i])) * 100));
+            out.writeBoolean(locked[i]);
+            out.writeUTF(labels[i] != null ? labels[i] : "");
+        }
+        send(player, out.toByteArray());
+    }
+
+    // ── BODY_REIN_UPDATE (0x31) ───────────────────────────────────────────
+
+    public static void sendBodyReinUpdate(Player player, BodyReinforcement br) {
+        float ratio = br.getMax() > 0 ? (float)(br.getCurrent() / br.getMax()) : 0f;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.BODY_REIN_UPDATE);
+        out.writeByte((byte)(int)(Math.max(0f, Math.min(1f, ratio)) * 100));
+        send(player, out.toByteArray());
     }
 
     // ── INFINITY_AO (0x17) ────────────────────────────────────────────────

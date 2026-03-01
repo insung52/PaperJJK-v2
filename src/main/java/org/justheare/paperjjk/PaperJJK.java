@@ -54,7 +54,7 @@ public class PaperJJK extends JavaPlugin {
     }
 
     /** true 일 때 데미지 파이프라인 디버그 로그 출력 */
-    public static boolean DEBUG_DAMAGE = false;
+    public static boolean DEBUG_DAMAGE = true;
 
     public static void log(String msg) {
         instance.getLogger().info(msg);

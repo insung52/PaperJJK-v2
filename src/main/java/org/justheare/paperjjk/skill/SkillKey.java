@@ -19,4 +19,9 @@ public enum SkillKey {
             default   -> null;
         };
     }
+
+    /** SkillKey → 패킷 slot 바이트 변환 (1~4) */
+    public byte toSlot() {
+        return (byte)(ordinal() + 1);
+    }
 }

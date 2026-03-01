@@ -184,15 +184,18 @@ public class JEvent implements Listener {
             // 술식 복원
             Technique technique = TechniqueFactory.create(saved.techniqueName, jp);
             if (technique != null) {
-                jp.setTechnique(technique);
+                jp.setTechnique(technique); // 내부에서 efficiencyLevel을 기본값으로 설정
+                // 저장된 efficiencyLevel 이 있으면 기본값을 override
+                if (saved.efficiencyLevel >= 0) {
+                    jp.cursedEnergy.setEfficiencyLevel(saved.efficiencyLevel);
+                }
                 // Mahoraga 적응 데이터 복원
                 if (technique instanceof org.justheare.paperjjk.technique.MahoragaTechnique mt
                         && saved.mahoragaAdaptMap != null) {
                     mt.loadAdaptationMap(saved.mahoragaAdaptMap);
                 }
-                // 비행 허용 (주술사 등급)
-                player.setAllowFlight(saved.maxCE > 1000);
             }
+            jp.canGraspAirSurface = saved.canGraspAirSurface;
 
             event.setJoinMessage("§6sorcerer joined");
             PaperJJK.log("[JEvent] Restored: " + player.getName()

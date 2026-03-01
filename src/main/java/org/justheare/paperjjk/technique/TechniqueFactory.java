@@ -49,4 +49,19 @@ public class TechniqueFactory {
             default -> false;
         };
     }
+
+    /**
+     * 술식에 따른 기본 주력 효율 레벨 (0~100).
+     * 레벨 0: 명목 소모 100%, 레벨 100: 명목 소모 1%.
+     * 문서 기준: 육안=100, mizushi=90, 1급=50, 2급=30, 3급=15.
+     */
+    public static int defaultEfficiencyLevel(String name) {
+        return switch (name.toLowerCase()) {
+            case "infinity"        -> 100;
+            case "mizushi"         -> 90;
+            case "mahoraga"        -> 60;
+            case "physical_gifted" -> 0;
+            default                -> 15;
+        };
+    }
 }

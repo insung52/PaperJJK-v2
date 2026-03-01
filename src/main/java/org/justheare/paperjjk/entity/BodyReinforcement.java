@@ -22,9 +22,7 @@ public class BodyReinforcement {
     // ── 충전 ──────────────────────────────────────────────────────────────
 
     public void startCharging(BodyReinMode mode) {
-        if (this.mode == BodyReinMode.NONE) {
-            this.mode = mode;
-        }
+        this.mode = mode; // 항상 업데이트 (키 홀드 중 NORMAL↔BITEN 전환 가능)
     }
 
     public void stopCharging() {
@@ -85,6 +83,16 @@ public class BodyReinforcement {
     /** BITEN 전용 — 영역전개 필중도 방어 */
     public boolean blocksDomainSureHit() {
         return mode == BodyReinMode.BITEN && current > 0;
+    }
+
+    // ── 소모 ──────────────────────────────────────────────────────────────
+
+    /**
+     * 신체강화 주력 소모 (대쉬 등).
+     * current 가 0 아래로 내려가지 않음.
+     */
+    public void consume(double amount) {
+        current = Math.max(0, current - amount);
     }
 
     // ── 조회 / 설정 ───────────────────────────────────────────────────────

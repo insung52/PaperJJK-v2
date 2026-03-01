@@ -66,12 +66,12 @@ public class DamageInfo {
     }
 
     /** damage(체력) → attackOutput(주력) 변환 */
-    public static double damageToOutput(double damage) { return damage * 10.0; }
+    public static double damageToOutput(double damage) { return damage * 100.0; }
 
     /** attackOutput(주력) → damage(체력) 변환 */
-    public static double outputToDamage(double attackOutput) { return attackOutput / 10.0; }
+    public static double outputToDamage(double attackOutput) { return attackOutput / 100.0; }
     public static void setnodamagetick(LivingEntity living){
-        living.setMaximumNoDamageTicks(1);
-        living.setNoDamageTicks(1);
+        living.setMaximumNoDamageTicks(0);
+        living.setNoDamageTicks(0);
     }
 }
