@@ -2,6 +2,7 @@ package org.justheare.paperjjk.scheduler;
 
 import org.bukkit.Bukkit;
 import org.justheare.paperjjk.PaperJJK;
+import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.skill.SkillExecution;
 
 import java.util.ArrayList;
@@ -60,6 +61,11 @@ public class WorkScheduler {
     // ── 메인 틱 ───────────────────────────────────────────────────────────
 
     private void onTick() {
+        // 모든 JEntity 틱 처리 (주력 회복, 쿨다운, 상태이상 등)
+        for (var je : JEntityManager.instance.all()) {
+            je.onTick();
+        }
+
         if (executions.isEmpty()) return;
 
         // 완료된 스킬 제거

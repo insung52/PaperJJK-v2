@@ -274,7 +274,7 @@ public class InfinityAo extends ActiveSkill {
         for (Entity tentity : targets) {
             if (tentity.equals(user)) continue;
 
-            Vector dVec = tentity.getLocation().toVector().subtract(aoLocation.toVector());
+            Vector dVec = aoLocation.toVector().subtract(tentity.getLocation().toVector());
             double dist = dVec.length();
             if (dist > radius) continue;
 

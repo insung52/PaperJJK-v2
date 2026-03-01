@@ -14,7 +14,9 @@ import org.justheare.paperjjk.technique.Technique;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -57,6 +59,19 @@ public abstract class JEntity {
 
     public final StatusEffects status;
 
+    /**
+     * DamagePipeline 이 entity.damage() 를 호출할 때 EntityDamageByEntityEvent
+     * 가 다시 발생하지 않도록 억제하는 플래그.
+     * Pipeline 이 damage() 직전에 true 로 세팅, 이벤트 핸들러가 감지 후 해제.
+     */
+    public boolean suppressDamageEvent = false;
+
+    /**
+     * 환경 데미지 소스별 쿨다운. 키 = EntityDamageEvent.Cause.name().
+     * 소스마다 독립적으로 관리되어 서로 간섭하지 않음.
+     */
+    private final Map<String, Integer> envDamageCooldowns = new HashMap<>();
+
     // ── 생성자 ────────────────────────────────────────────────────────────
 
     protected JEntity(Entity entity, double maxCursedEnergy,
@@ -68,6 +83,11 @@ public abstract class JEntity {
         this.reverseOutput = canReverseOutput ? new ReverseOutput() : null;
         this.blackFlash = new BlackFlashState(blackFlashBaseProbability);
         this.status = new StatusEffects();
+
+        // 마크 기본 i-frame 완전 제거 — 우리 시스템에서 직접 관리
+        if (entity instanceof LivingEntity le) {
+            DamageInfo.setnodamagetick(le);
+        }
     }
 
     // ── 틱 처리 ───────────────────────────────────────────────────────────
@@ -98,6 +118,18 @@ public abstract class JEntity {
 
         // 상태이상 틱
         status.onTick(this);
+
+        // 환경 데미지 쿨다운 틱다운
+        if (!envDamageCooldowns.isEmpty()) {
+            org.justheare.paperjjk.PaperJJK.logDamage("[DBG-TICK] envCooldowns before=" + envDamageCooldowns);
+        }
+        envDamageCooldowns.entrySet().removeIf(e -> {
+            e.setValue(e.getValue() - 1);
+            return e.getValue() <= 0;
+        });
+        if (!envDamageCooldowns.isEmpty()) {
+            org.justheare.paperjjk.PaperJJK.logDamage("[DBG-TICK] envCooldowns after=" + envDamageCooldowns);
+        }
     }
 
     /** 충전 중인 스킬들로부터 ChargingRequest 목록 생성 */
@@ -143,6 +175,19 @@ public abstract class JEntity {
     public abstract LivingEntity getLivingEntity();
 
     // ── 편의 메서드 ───────────────────────────────────────────────────────
+
+    /**
+     * 환경 데미지 소스 쿨다운 체크 + 세팅.
+     * 쿨다운 중이면 false 반환 (데미지 무시). 아니면 쿨다운 세팅 후 true 반환.
+     */
+    public boolean tryEnvDamage(String cause, int cooldownTicks) {
+        int remaining = envDamageCooldowns.getOrDefault(cause, 0);
+        org.justheare.paperjjk.PaperJJK.logDamage("[DBG-CD] tryEnvDamage cause=" + cause
+                + " remaining=" + remaining + " mapSize=" + envDamageCooldowns.size());
+        if (envDamageCooldowns.containsKey(cause)) return false;
+        envDamageCooldowns.put(cause, cooldownTicks);
+        return true;
+    }
 
     public boolean hasTechnique() { return technique != null; }
     public boolean canReverseOutput() { return reverseOutput != null; }

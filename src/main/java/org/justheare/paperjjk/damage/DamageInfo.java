@@ -1,5 +1,6 @@
 package org.justheare.paperjjk.damage;
 
+import org.bukkit.entity.LivingEntity;
 import org.justheare.paperjjk.entity.JEntity;
 
 /**
@@ -69,4 +70,8 @@ public class DamageInfo {
 
     /** attackOutput(주력) → damage(체력) 변환 */
     public static double outputToDamage(double attackOutput) { return attackOutput / 10.0; }
+    public static void setnodamagetick(LivingEntity living){
+        living.setMaximumNoDamageTicks(1);
+        living.setNoDamageTicks(1);
+    }
 }

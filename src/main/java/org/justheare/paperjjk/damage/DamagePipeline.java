@@ -20,10 +20,25 @@ public class DamagePipeline {
 
         // Phase 2
         DefenceResult defence = applyDefence(info, victim);
-        if (defence.fullyBlocked) return DamageResult.blocked();
+        if (defence.fullyBlocked) {
+            org.justheare.paperjjk.PaperJJK.logDamage("[DBG-PIPE] BLOCKED by phase2 (technique.defend)"
+                    + " victim.tech=" + (victim.technique != null ? victim.technique.getKey() : "none")
+                    + " sureHit=" + info.sureHit + " canBeBlocked=" + info.canBeBlocked);
+            return DamageResult.blocked();
+        }
 
         // Phase 3
-        return applyFinalDamage(info, defence, victim);
+        org.justheare.paperjjk.PaperJJK.logDamage("[DBG-PIPE] phase2 passed, attackOutput="
+                + info.attackOutput + " victim.tech=" + (victim.technique != null ? victim.technique.getKey() : "none"));
+        DamageResult result = applyFinalDamage(info, defence, victim);
+
+        // 물리 타격 성공 시 공격자 술식 passive 호출 (타격 시 효과)
+        if (!result.blocked && info.type == DamageType.PHYSICAL
+                && info.attacker != null && info.attacker.technique != null) {
+            info.attacker.technique.onAttack(victim, info);
+        }
+
+        return result;
     }
 
     // ── Phase 1 ───────────────────────────────────────────────────────────
@@ -79,9 +94,23 @@ public class DamagePipeline {
 
         double finalDamage = DamageInfo.outputToDamage(info.attackOutput);
 
-        // 체력 감소
+        // NMS i-frame 체크 통과를 위해 current만 0으로 리셋
+        int beforeTick = victim.getLivingEntity().getNoDamageTicks();
+        int beforeMax  = victim.getLivingEntity().getMaximumNoDamageTicks();
+        victim.getLivingEntity().setNoDamageTicks(0);
+        org.justheare.paperjjk.PaperJJK.logDamage("[DBG-PIPE] applyFinalDamage"
+                + " dmg=" + finalDamage
+                + " noDmgTicks(before)=" + beforeTick + "/" + beforeMax
+                + " suppress=true, calling entity.damage()");
+        victim.suppressDamageEvent = true;
         victim.getLivingEntity().damage(finalDamage, info.attacker != null
                 ? info.attacker.getLivingEntity() : null);
+        // 이벤트가 발생하지 않은 경우를 대비한 safety net
+        boolean wasStillSet = victim.suppressDamageEvent;
+        victim.suppressDamageEvent = false;
+        org.justheare.paperjjk.PaperJJK.logDamage("[DBG-PIPE] after entity.damage()"
+                + " suppressWasStillTrue=" + wasStillSet
+                + " noDmgTicks(after)=" + victim.getLivingEntity().getNoDamageTicks());
 
         // 주력 감소
         victim.cursedEnergy.forceConsume(info.attackOutput);

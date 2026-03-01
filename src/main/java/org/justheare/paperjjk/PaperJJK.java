@@ -53,7 +53,14 @@ public class PaperJJK extends JavaPlugin {
         getLogger().info("PaperJJK v2 disabled.");
     }
 
+    /** true 일 때 데미지 파이프라인 디버그 로그 출력 */
+    public static boolean DEBUG_DAMAGE = false;
+
     public static void log(String msg) {
         instance.getLogger().info(msg);
+    }
+
+    public static void logDamage(String msg) {
+        if (DEBUG_DAMAGE) instance.getLogger().info(msg);
     }
 }
