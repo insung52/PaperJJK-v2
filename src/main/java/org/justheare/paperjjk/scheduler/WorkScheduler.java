@@ -32,10 +32,10 @@ public class WorkScheduler {
     private int taskId = -1;
 
     /** 활성 스킬 WFQ 틱당 예산 */
-    private int budgetPerTick = 5000;
+    private int budgetPerTick = 3000;
 
     /** draining 큐 틱당 예산 (활성 스킬과 독립) */
-    private int drainBudgetPerTick = 5000;
+    private int drainBudgetPerTick = 3000;
 
     private WorkScheduler() {}
 

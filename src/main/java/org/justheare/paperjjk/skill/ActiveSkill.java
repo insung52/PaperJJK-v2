@@ -160,7 +160,7 @@ public abstract class ActiveSkill implements SkillExecution {
             Location loc = it.next();
             it.remove();
             if (loc.getWorld() != null && !loc.getBlock().isEmpty()) {
-                loc.getBlock().setType(Material.AIR, false);
+                loc.getBlock().setType(Material.AIR);
             }
             consumed++;
         }

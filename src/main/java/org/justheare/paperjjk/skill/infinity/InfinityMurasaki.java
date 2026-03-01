@@ -306,7 +306,7 @@ public class InfinityMurasaki extends ActiveSkill {
         if (me_cr > Math.min(power, 100)) { end(); return; }
 
         // ── 셸 4칸 확장 (틱당 4 radius step) ────────────────────────────
-        for (int r = 0; r < 4; r++) {
+        for (int r = 0; r < 3; r++) {
             me_cr++;
             int[][] surface = getSphereSurface(me_cr);
 
