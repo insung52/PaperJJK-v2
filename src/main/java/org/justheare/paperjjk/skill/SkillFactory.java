@@ -15,8 +15,9 @@ public class SkillFactory {
     @Nullable
     public static ActiveSkill create(String skillId, JEntity caster) {
         return switch (skillId) {
-            case "infinity_ao" -> new org.justheare.paperjjk.skill.infinity.InfinityAo(caster);
-            // case "infinity_aka"   -> new InfinityAka(caster);
+            case "infinity_passive" -> new org.justheare.paperjjk.skill.infinity.InfinityPassive(caster);
+            case "infinity_ao"      -> new org.justheare.paperjjk.skill.infinity.InfinityAo(caster);
+            case "infinity_aka"     -> new org.justheare.paperjjk.skill.infinity.InfinityAka(caster);
             // case "mizushi_kai"    -> new MizushiKai(caster);
             default -> null;
         };

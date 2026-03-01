@@ -8,8 +8,10 @@ import org.justheare.paperjjk.damage.DefenceResult;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.innate.InfinityInnateTerritory;
+import org.justheare.paperjjk.skill.ActiveSkill;
 import org.justheare.paperjjk.skill.SkillKey;
 import org.justheare.paperjjk.skill.SkillSlot;
+import org.justheare.paperjjk.skill.infinity.InfinityPassive;
 
 import java.util.Map;
 
@@ -41,11 +43,21 @@ public class InfinityTechnique extends Technique {
 
     @Override
     public DefenceResult defend(DamageInfo incoming) {
-        // 필중(sureHit)이 아니면 무한이 완전 차단
-        if (!incoming.sureHit && incoming.canBeBlocked) {
+        // 패시브 활성화 중 + 필중 아님 → 완전 차단
+        if (!incoming.sureHit && incoming.canBeBlocked && isPassiveActive()) {
             return DefenceResult.fullyBlocked();
         }
         return DefenceResult.notBlocked(0);
+    }
+
+    /** X 슬롯의 InfinityPassive 가 실행 중인지 확인 */
+    private boolean isPassiveActive() {
+        for (ActiveSkill skill : owner.getActiveSkills()) {
+            if (skill instanceof InfinityPassive && !skill.isDone()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -73,9 +85,9 @@ public class InfinityTechnique extends Technique {
     public Map<SkillKey, SkillSlot> getDefaultBindings() {
         // 영역전개는 R 키 전용 (별도 패킷). x/c/v/b 는 스킬 4슬롯.
         return Map.of(
-            SkillKey.X, new SkillSlot("infinity_passive", false, false), // 무한 on/off
+            SkillKey.X, new SkillSlot("infinity_passive", true,  true),  // 무한 패시브 (재충전 가능)
             SkillKey.C, new SkillSlot("infinity_ao",      true,  true),  // ao 충전/재충전
-            SkillKey.V, new SkillSlot("infinity_ao",      true,  true),  // ao 2번째 슬롯
+            SkillKey.V, new SkillSlot("infinity_aka",     true,  false), // aka 발사
             SkillKey.B, new SkillSlot("infinity_ao",      true,  true)   // ao 3번째 슬롯
         );
     }

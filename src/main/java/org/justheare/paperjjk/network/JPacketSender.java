@@ -215,13 +215,13 @@ public class JPacketSender {
 
     public static void broadcastInfinityAkaStart(Location pos, float strength, String id, double range) {
         for (Player p : pos.getWorld().getPlayers()) {
-            if (p.getLocation().distance(pos) <= range) sendInfinityAkaStart(p, pos, strength, id);
+            if (p.getLocation().distance(pos) <= range) sendInfinityAkaStart(p, pos, strength*0.2f, id);
         }
     }
 
     public static void broadcastInfinityAkaSync(Location pos, float strength, String id, double range) {
         for (Player p : pos.getWorld().getPlayers()) {
-            if (p.getLocation().distance(pos) <= range) sendInfinityAkaSync(p, pos, strength, id);
+            if (p.getLocation().distance(pos) <= range) sendInfinityAkaSync(p, pos, strength*0.2f, id);
         }
     }
 

@@ -438,4 +438,9 @@ public class InfinityAo extends ActiveSkill {
     private float powerToStrength(double power) {
         return (float) (power * 0.049 + 0.051);
     }
+
+    // ── Murasaki 트리거용 공개 게터 ──────────────────────────────────────
+
+    public Location getAoLocation() { return aoLocation; }
+    public double getRemainingPower() { return remainingPower; }
 }

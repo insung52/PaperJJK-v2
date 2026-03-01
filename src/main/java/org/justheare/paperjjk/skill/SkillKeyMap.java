@@ -66,10 +66,17 @@ public class SkillKeyMap {
     }
 
     private void handlePress(SkillSlot slot) {
-        // 이미 실행 중인 스킬이 있고 재충전 가능하면 재충전 시작
-        if (slot.isRunning() && slot.rechargeable && slot.runningSkill.isActive()) {
-            slot.runningSkill.startRecharging();
-            return;
+        if (slot.isRunning()) {
+            if (slot.rechargeable && slot.runningSkill.isActive()) {
+                // 발동 중인 재충전 가능 스킬 → 재충전
+                slot.runningSkill.startRecharging();
+                return;
+            }
+            if (slot.rechargeable) {
+                // rechargeable + CHARGING 중: 무시 (중복 생성 방지)
+                return;
+            }
+            // !rechargeable: 기존 스킬 유지하면서 새 인스턴스 생성 (연타 발사 가능)
         }
 
         // 새 스킬 생성 (SkillFactory 에서 skillId 로 생성)
