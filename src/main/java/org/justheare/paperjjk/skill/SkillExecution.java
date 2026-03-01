@@ -20,4 +20,11 @@ public interface SkillExecution {
      * 2 = COSMETIC (파티클, 사운드 — 예산 초과 시 드롭 허용)
      */
     int getPriority();
+
+    /**
+     * Phase 2: pendingBreaks 큐에서 최대 budget 개만큼 block.setType(AIR, false) 실행.
+     * 기본 구현은 no-op (블록 파괴가 없는 스킬용).
+     * @return 실제로 소비한 토큰 수
+     */
+    default int flushBlocks(int budget) { return 0; }
 }

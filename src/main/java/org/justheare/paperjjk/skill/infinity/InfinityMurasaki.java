@@ -342,10 +342,13 @@ public class InfinityMurasaki extends ActiveSkill {
 
                 Location blockLoc = murasakiLocation.clone()
                         .add(offset[0], offset[1], offset[2]);
-                float blockHardness = tryBreakBlock(blockLoc, (int)dirEnergy);
+
+                // Phase 1: 블록 hardness 읽기 (수정 없음)
+                // Phase 2 큐 등록: 에너지가 경도보다 높으면 파괴 가능
+                float blockHardness = tryBreakBlock(blockLoc,(int)dirEnergy);
                 if (blockHardness <= 0f) continue;
 
-                // 블록 경도²에 비례한 에너지 감소
+                // 블록 경도²에 비례한 에너지 감소 (파괴 가능 여부와 무관하게 항상 적용)
                 float energyLoss = (float)Math.max(Math.pow(blockHardness, 2.0), 0.001);
                 for (int ki = 0; ki < bSz; ki++) {
                     if (_bandW[ki] > 0f)
@@ -399,20 +402,20 @@ public class InfinityMurasaki extends ActiveSkill {
     }
 
     /**
-     * 블록 파괴 시도. 빈 블록이면 0 반환 (에너지 손실 없음).
-     * 블록이 있으면 제거하고 hardness 반환 (에너지 손실 계산에 사용).
+     * Phase 1: 블록 경도 읽기만 (수정 없음).
+     * 빈 블록 → 0f, 액체 → 0.03f, 파괴불가 → 1000f.
      */
     private float tryBreakBlock(Location loc, int energy) {
         var block = loc.getBlock();
         if (block.isEmpty()) return 0f;
         if (block.isLiquid()) {
-            block.setType(Material.AIR);
+            queueBreak(loc);
             return 0.03f;
         }
         float h = block.getType().getHardness();
         if(h>=0){
             if(h<energy){
-                block.setType(Material.AIR);
+                queueBreak(loc);
                 return h;
             }
             return h;

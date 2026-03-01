@@ -66,34 +66,36 @@ public class WorkScheduler {
             je.onTick();
         }
 
-        if (executions.isEmpty()) return;
-
-        // 완료된 스킬 제거
         executions.removeIf(SkillExecution::isDone);
-
         if (executions.isEmpty()) return;
 
-        // 우선순위 정렬 (낮은 숫자 = 높은 우선순위)
+        // ── Phase 1: 즉시 실행 (로직·에너지·데미지 — 예산 제한 없음) ────────
+        // snapshot: tick() 내부에서 새 스킬이 추가되어도 CME 방지
+        List<SkillExecution> snapshot = new ArrayList<>(executions);
+        for (SkillExecution exec : snapshot) {
+            exec.tick();
+        }
+
+        executions.removeIf(SkillExecution::isDone);
+        if (executions.isEmpty()) return;
+
+        // ── Phase 2: WFQ 블록 파괴 (applyPhysics=false, 예산 내 균등 분배) ──
         executions.sort(Comparator.comparingInt(SkillExecution::getPriority));
 
-        // WFQ: 우선순위 그룹별로 예산 배분
-        // 같은 우선순위 그룹 내에서는 균등 분배
         int remaining = budgetPerTick;
         int i = 0;
         while (i < executions.size() && remaining > 0) {
-            // 같은 우선순위 그룹 찾기
             int priority = executions.get(i).getPriority();
             int groupEnd = i;
             while (groupEnd < executions.size()
-                    && executions.get(groupEnd).getPriority() == priority) {
-                groupEnd++;
-            }
+                    && executions.get(groupEnd).getPriority() == priority) groupEnd++;
+
             int groupSize = groupEnd - i;
             int perExec = Math.max(1, remaining / groupSize);
 
-            for (int j = i; j < groupEnd; j++) {
-                executions.get(j).tick();
-                remaining -= perExec;
+            for (int j = i; j < groupEnd && remaining > 0; j++) {
+                int allowed = Math.min(perExec, remaining);
+                remaining -= executions.get(j).flushBlocks(allowed);
             }
             i = groupEnd;
         }

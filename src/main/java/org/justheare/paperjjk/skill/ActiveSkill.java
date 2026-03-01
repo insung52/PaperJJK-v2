@@ -1,7 +1,13 @@
 package org.justheare.paperjjk.skill;
 
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.network.PacketIds;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * 실행 중인 술식(스킬)의 추상 기반.
@@ -33,6 +39,12 @@ public abstract class ActiveSkill implements SkillExecution {
     private boolean recharging = false;
 
     private static final int PRIORITY_NORMAL = 1;
+
+    /**
+     * Phase 2 큐: Phase 1(tick) 에서 파괴 확정한 블록 위치 목록.
+     * WorkScheduler 가 예산 내에서 block.setType(AIR, false) 로 소화.
+     */
+    private final List<Location> pendingBreaks = new ArrayList<>();
 
     public ActiveSkill(JEntity caster, double perTickChargeRequest) {
         this.caster = caster;
@@ -122,6 +134,37 @@ public abstract class ActiveSkill implements SkillExecution {
             phase = SkillPhase.CHARGING;
             recharging = true;
         }
+    }
+
+    // ── Phase 2: 블록 파괴 큐 ────────────────────────────────────────────
+
+    /**
+     * Phase 1(tick) 에서 파괴할 블록을 큐에 등록.
+     * 서브클래스가 tryBreakBlock 대신 이 메서드를 사용.
+     */
+    protected void queueBreak(Location loc) {
+        pendingBreaks.add(loc);
+    }
+
+    /**
+     * Phase 2: pendingBreaks 에서 budget 개만큼 block.setType(AIR, false) 실행.
+     * applyPhysics=false → 물리 cascade / 빛 재계산 차단.
+     * @return 실제로 소비한 토큰 수
+     */
+    @Override
+    public int flushBlocks(int budget) {
+        if (pendingBreaks.isEmpty()) return 0;
+        int consumed = 0;
+        Iterator<Location> it = pendingBreaks.iterator();
+        while (it.hasNext() && consumed < budget) {
+            Location loc = it.next();
+            it.remove();
+            if (loc.getWorld() != null && !loc.getBlock().isEmpty()) {
+                loc.getBlock().setType(Material.AIR, false);
+            }
+            consumed++;
+        }
+        return consumed;
     }
 
     // ── 제어 (스킬이 지원하는 경우 override) ──────────────────────────────
