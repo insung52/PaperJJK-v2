@@ -139,7 +139,16 @@ public class JEvent implements Listener {
             DamageInfo.setnodamagetick(living);
         }
 
-        if (victim == null) return;
+        if (victim == null) {
+            // 일반 몹(비-JEntity) — 술식 onAttackMob 발동 (vanilla 데미지는 그대로)
+            if (event.getDamager() instanceof Player p && damagee instanceof LivingEntity mob) {
+                JEntity jAttacker = JEntityManager.instance.get(p.getUniqueId());
+                if (jAttacker != null && jAttacker.technique != null) {
+                    jAttacker.technique.onAttackMob(mob);
+                }
+            }
+            return;
+        }
 
         // 외부 물리 타격 → DamagePipeline으로 라우팅
         event.setCancelled(true);

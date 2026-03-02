@@ -1,6 +1,14 @@
 package org.justheare.paperjjk.technique;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Color;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
+import org.bukkit.World;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.util.Vector;
 import org.justheare.paperjjk.barrier.DomainExpansion;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
@@ -24,6 +32,14 @@ import java.util.Map;
  */
 public class InfinityTechnique extends Technique {
 
+    private static final Particle.DustOptions DUST_INFINITY =
+            new Particle.DustOptions(Color.fromRGB(80, 30, 220), 0.7f);
+
+    /** 신체강화 소모 비율 */
+    private static final double BURN_RATIO     = 0.30;
+    /** 술식 미타버린 상태에서의 추가 피해 배율 */
+    private static final double TECHNIQUE_MULT = 3.0;
+
     /** 육안 보유 여부 — 육안이 없으면 passive 주력 소모 높음 */
     private final boolean hasSixEyes;
 
@@ -36,9 +52,58 @@ public class InfinityTechnique extends Technique {
 
     @Override
     public void onAttack(JEntity target, DamageInfo damageInfo) {
-        // 타격 시 효과: 일정 확률로 상대를 끌어당기는 파티클 + 추가 데미지
-        // (기존 코드 참고: 0.3 확률로 FLASH 파티클)
-        // 실제 이펙트는 스킬 구현체(InfinityPassive)에서 처리
+        double consumed = consumeBodyRein();
+        if (consumed <= 0) return;
+
+        if (owner.isTechniqueBlocked()) {
+            damageInfo.attackOutput += consumed;
+        } else {
+            damageInfo.attackOutput += consumed * TECHNIQUE_MULT;
+            spawnInfinityHitEffect(target.entity);
+        }
+    }
+
+    @Override
+    public void onAttackMob(LivingEntity mob) {
+        double consumed = consumeBodyRein();
+        if (consumed <= 0) return;
+
+        boolean burned = owner.isTechniqueBlocked();
+        double bonus = burned ? consumed : consumed * TECHNIQUE_MULT;
+        DamageInfo.setnodamagetick(mob);
+        mob.damage(DamageInfo.outputToDamage(bonus));
+        if (!burned) spawnInfinityHitEffect(mob);
+    }
+
+    private double consumeBodyRein() {
+        double current = owner.bodyReinforcement.getCurrent();
+        if (current <= 0) return 0;
+        double consumed = current * BURN_RATIO;
+        owner.bodyReinforcement.consume(consumed);
+        return consumed;
+    }
+
+    private void spawnInfinityHitEffect(org.bukkit.entity.Entity targetEntity) {
+        Location center = targetEntity.getLocation().add(0, targetEntity.getHeight() / 2, 0);
+        World world = center.getWorld();
+        if (world == null) return;
+        if (Math.random() < 0.3) {
+            double dist = owner.getLivingEntity().getEyeLocation().distance(targetEntity.getLocation());
+            owner.getLivingEntity().getWorld().spawnParticle(
+                    Particle.FLASH,
+                    owner.getLivingEntity().getEyeLocation().add(
+                            owner.getLivingEntity().getEyeLocation().getDirection().multiply(dist * 0.7)),
+                    1, 1.0, 1.0, 1.0, 1.0,
+                    Color.fromARGB(10, 0, 0, 255)
+            );
+        }
+        // 시전자 방향으로 약하게 당기기 (무한의 인력)
+        if (targetEntity instanceof LivingEntity living) {
+            Vector pull = owner.entity.getLocation().toVector().subtract(center.toVector());
+            if (pull.length() > 0.01) {
+                living.setVelocity(living.getVelocity().add(pull.normalize().multiply(0.25)));
+            }
+        }
     }
 
     @Override

@@ -168,9 +168,23 @@ public class MizushiKai extends ActiveSkill {
 
                 // 블록 파괴
                 Block blk = sliceLoc.getBlock();
-                if (!blk.isEmpty() && !blk.isLiquid()) {
+                if (!blk.isEmpty()) {
                     float h = blk.getType().getHardness();
-                    if (h >= 0 && h < power) {
+                    if(blk.isLiquid()){
+                        queueBreak(sliceLoc);
+                        if (Math.random() > 0.9) {
+                            p.getWorld().playSound(sliceLoc,
+                                    Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR,
+                                    SoundCategory.PLAYERS, 0.2f, 0.6f);
+                        }
+                        p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc,
+                                1, 0, 0, 0, 0, null, true);
+                        p.getWorld().spawnParticle(Particle.DUST, sliceLoc,
+                                1, 0, 0, 0, 0, DUST_HIT, true);
+                        p.getWorld().spawnParticle(Particle.BLOCK, sliceLoc,
+                                5, 0.3, 0.3, 0.3, 1, blk.getBlockData(), false);
+                    }
+                    else if ((h >= 0 && h < power)) {
                         queueBreak(sliceLoc);
                         power -= Math.pow(h, 1.3) / 5.0;
                         if (Math.random() > 0.9) {

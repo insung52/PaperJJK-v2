@@ -1,5 +1,6 @@
 package org.justheare.paperjjk.technique;
 
+import org.bukkit.entity.LivingEntity;
 import org.justheare.paperjjk.barrier.DomainExpansion;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DefenceResult;
@@ -26,10 +27,17 @@ public abstract class Technique {
     // ── 핵심 동작 ─────────────────────────────────────────────────────────
 
     /**
-     * 타격 시 효과 (passive).
+     * 타격 시 효과 (passive) — 대상이 JEntity 인 경우.
      * DamagePipeline 이 공격 발생 시 호출.
      */
     public abstract void onAttack(JEntity target, DamageInfo damageInfo);
+
+    /**
+     * 타격 시 효과 (passive) — 대상이 일반 몹(비-JEntity) 인 경우.
+     * JEvent 에서 vanilla EntityDamageByEntityEvent 발생 시 호출.
+     * 기본 구현은 아무것도 하지 않음.
+     */
+    public void onAttackMob(LivingEntity mob) {}
 
     /**
      * 피격 시 방어 처리.
