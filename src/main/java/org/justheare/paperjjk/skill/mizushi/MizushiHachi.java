@@ -8,6 +8,7 @@ import org.bukkit.SoundCategory;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.util.Vector;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
@@ -38,7 +39,7 @@ public class MizushiHachi extends ActiveSkill {
     /** 재충전 틱당 파워 증가 */
     private static final double POWER_PER_CHARGE_TICK = 3.0;
     /** 발동 중 틱당 파워 감소 (InfinityPassive 와 달리 0까지 감소) */
-    private static final double POWER_DECAY_PER_TICK  = 1.5;
+    private static final double POWER_DECAY_PER_TICK  = 0.1;
     private static final double MAX_POWER             = 100.0;
     /** CE 소모: 파워 1당 틱당 */
     private static final double CE_PER_POWER_PER_TICK = 0.05;
@@ -91,8 +92,7 @@ public class MizushiHachi extends ActiveSkill {
         if (chargeSoundTick % CHARGE_SOUND_INTERVAL == 0) {
             float vol   = (float)(power / 100.0);
             float pitch = (float)(power / 100.0 * 1.5 + 0.5);
-            p.getWorld().playSound(p.getLocation(),
-                    Sound.BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM, vol, pitch);
+            //p.getWorld().playSound(p.getLocation(), Sound.BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM, vol, pitch);
         }
 
         tickCount++;
@@ -132,8 +132,7 @@ public class MizushiHachi extends ActiveSkill {
     @Override
     protected void onEnd() {
         if (caster instanceof JPlayer jp) {
-            jp.player.getWorld().playSound(jp.player.getLocation(),
-                    Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 1f, 2f);
+            //jp.player.getWorld().playSound(jp.player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 1f, 2f);
         }
     }
 
@@ -155,10 +154,10 @@ public class MizushiHachi extends ActiveSkill {
 
     private void processEntities(Player user) {
         Location center = user.getEyeLocation();
-        double radius = currentRadius();
+        double radius = currentRadius()/3;
 
         List<Entity> nearby = (List<Entity>) center.getNearbyEntities(
-                radius + 1, radius + 1, radius + 1);
+                radius + 2, radius + 2, radius + 2);
 
         for (Entity entity : nearby) {
             if (entity.equals(user)) continue;
@@ -169,23 +168,20 @@ public class MizushiHachi extends ActiveSkill {
             double dist = entityCenter.distance(center);
             double adjustedRadius = radius + entityHeight / 3 + entityWidth / 3;
 
-            if (dist > adjustedRadius + 1) continue;
+            if (dist > adjustedRadius) continue;
 
-            if (dist < adjustedRadius - 1) {
+            if (dist <= adjustedRadius) {
                 // 안쪽: 밀어내기 + 참격 데미지
                 Vector pushDir = entityCenter.toVector().subtract(center.toVector());
-                if (pushDir.length() > 0.01) {
-                    entity.setVelocity(pushDir.normalize().multiply(0.3));
+                if (pushDir.length() > 0.01 && entity instanceof Projectile) {
+                    entity.setVelocity( entity.getVelocity().add( pushDir.normalize().multiply(1) ) );
                 }
                 if (tickCount % DAMAGE_INTERVAL == 0 && entity instanceof LivingEntity living) {
                     applyHachiDamage(living, dist);
                     living.addScoreboardTag("hachi");
                 }
                 spawnBarrierParticle(center, entityCenter, radius);
-            } else {
-                // 경계: 속도 감쇄 (방어)
-                entity.setVelocity(entity.getVelocity().multiply(0.2));
-                spawnBarrierParticle(center, entityCenter, radius);
+                power -= 5;
             }
         }
     }
@@ -196,15 +192,15 @@ public class MizushiHachi extends ActiveSkill {
 
         double output;
         if (targetJE != null) {
-            double casterCE = caster.cursedEnergy.getMax();
-            double targetCE = targetJE.cursedEnergy.getMax();
+            double casterCE = caster.cursedEnergy.getCurrent();
+            double targetCE = targetJE.cursedEnergy.getCurrent();
             if (Math.pow(targetCE, 0.2) < 5) {
                 output = Math.pow(casterCE, 0.15) + power / 10.0;
             } else {
                 output = (Math.pow(casterCE, 0.15) - Math.pow(targetCE, 0.05)) + power / 10.0;
             }
         } else {
-            output = Math.pow(caster.cursedEnergy.getMax(), 0.10) + power / 10.0;
+            output = Math.pow(caster.cursedEnergy.getCurrent(), 0.10) + power / 10.0;
         }
 
         DamageInfo.setnodamagetick(living);
@@ -245,4 +241,9 @@ public class MizushiHachi extends ActiveSkill {
     // ── 공개 접근자 (MizushiTechnique.defend() 용) ──────────────────────
 
     public double getPower() { return power; }
+
+    /** MizushiTechnique.defend() 에서 피격 흡수 시 파워 차감 */
+    public void reducePower(double amount) {
+        power = Math.max(0, power - amount);
+    }
 }

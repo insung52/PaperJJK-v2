@@ -7,8 +7,10 @@ import org.justheare.paperjjk.damage.DefenceResult;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.innate.MizushiInnateTerritory;
+import org.justheare.paperjjk.skill.ActiveSkill;
 import org.justheare.paperjjk.skill.SkillKey;
 import org.justheare.paperjjk.skill.SkillSlot;
+import org.justheare.paperjjk.skill.mizushi.MizushiHachi;
 
 import java.util.Map;
 
@@ -35,10 +37,36 @@ public class MizushiTechnique extends Technique {
         // 추후 구현
     }
 
+    /** 팔 파워 1당 흡수 가능한 attackOutput 양 */
+    private static final double ABSORPTION_RATIO = 10.0;
+
     @Override
     public DefenceResult defend(DamageInfo incoming) {
-        // 어주자는 별도 방어 메커니즘 없음
-        return DefenceResult.notBlocked(0);
+        // sureHit(영역 필중 등)은 팔로 막을 수 없음
+        if (!incoming.canBeBlocked) return DefenceResult.notBlocked(0);
+
+        MizushiHachi hachi = getActiveHachi();
+        if (hachi == null) return DefenceResult.notBlocked(0);
+
+        double powerCost = incoming.attackOutput / ABSORPTION_RATIO;
+        double available  = hachi.getPower();
+
+        if (available >= powerCost) {
+            // 파워가 충분 → 완전 흡수, 파워 차감
+            hachi.reducePower(powerCost);
+            return DefenceResult.fullyBlocked();
+        } else {
+            // 파워 부족 → 남은 파워만큼만 부분 차단, 파워 소진
+            hachi.reducePower(available);
+            return DefenceResult.partialBlock(available / powerCost);
+        }
+    }
+
+    private MizushiHachi getActiveHachi() {
+        for (ActiveSkill skill : owner.getActiveSkills()) {
+            if (skill instanceof MizushiHachi h && !h.isDone()) return h;
+        }
+        return null;
     }
 
     @Override

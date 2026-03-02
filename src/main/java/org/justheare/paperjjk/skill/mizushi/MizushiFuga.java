@@ -166,7 +166,7 @@ public class MizushiFuga extends ActiveSkill {
         double power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0);
         float explodeSize = (float)(power / 25.0 + 2);
 
-        projectilePos.createExplosion(casterPlayer, explodeSize, false, false);
+        projectilePos.createExplosion(casterPlayer, explodeSize, true, true);
 
         double searchR = Math.pow(power, 0.3) + 1;
         List<Entity> targets = (List<Entity>) projectilePos.getNearbyEntities(searchR, searchR, searchR);

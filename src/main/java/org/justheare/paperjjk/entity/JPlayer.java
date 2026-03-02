@@ -318,7 +318,7 @@ public class JPlayer extends JEntity {
      */
     public void dash(boolean onGround) {
         // 공중에서 canGraspAirSurface 없으면 대쉬 불가
-        if (!onGround && !canGraspAirSurface) return;
+        if (player.getLocation().add(0,-1,0).getBlock().isPassable() && !canGraspAirSurface) return;
         double bodyReinCurrent = bodyReinforcement.getCurrent();
         double log2val   = Math.pow(bodyReinCurrent + 1,0.5);
         PaperJJK.log("what"+ log2val);
