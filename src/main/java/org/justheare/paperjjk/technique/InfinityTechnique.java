@@ -135,8 +135,7 @@ public class InfinityTechnique extends Technique {
         InnateTerritory territory = owner instanceof org.justheare.paperjjk.entity.JPlayer jp
                 ? jp.innateTerritory : null;
         if (territory == null) return null;
-        // 무량공처 (InfinityDomainExpansion) — 추후 구현
-        return null;
+        return new org.justheare.paperjjk.barrier.InfinityDomainExpansion(owner, territory);
     }
 
     @Override

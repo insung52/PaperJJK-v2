@@ -8,7 +8,9 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 import org.justheare.paperjjk.PaperJJK;
+import org.justheare.paperjjk.barrier.DomainManager;
 import org.justheare.paperjjk.technique.InfinityTechnique;
+import org.justheare.paperjjk.technique.MizushiTechnique;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.justheare.paperjjk.barrier.DomainExpansion;
@@ -23,6 +25,8 @@ import org.justheare.paperjjk.skill.SkillSlot;
 import org.justheare.paperjjk.status.StatusEffectType;
 import org.justheare.paperjjk.status.TimedStatusEffect;
 import org.justheare.paperjjk.technique.Technique;
+
+import org.bukkit.Location;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -149,21 +153,57 @@ public class JPlayer extends JEntity {
             player.sendMessage("생득 영역이 설정되지 않았습니다. (jjk id build)");
             return false;
         }
-        if (cursedEnergy.getCurrent() < 50000) {
+        if (activeDomain != null) {
+            player.sendMessage("이미 영역전개 중입니다.");
+            return false;
+        }
+        if (!cursedEnergy.consume(50000)) {
             player.sendMessage("주력이 부족합니다.");
             return false;
         }
+
         activeDomain = technique.createDomain();
-        return activeDomain != null;
+        if (activeDomain == null) {
+            // 소모된 CE 환불
+            cursedEnergy.setCurrent(cursedEnergy.getCurrent() + 50000);
+            return false;
+        }
+
+        DomainManager.instance.register(activeDomain);
+
+        // DOMAIN_VISUAL START 브로드캐스트
+        Location center = player.getLocation();
+        int domainType = getDomainType();
+        JPacketSender.broadcastDomainVisualStart(center, player.getUniqueId(),
+                domainType, center, (float) activeDomain.getRange(), activeDomain.isOpen(),
+                DomainManager.BROADCAST_RANGE);
+
+        return true;
     }
 
+    /**
+     * 영역전개를 수동으로 붕괴시킨다.
+     * onTick()에서 DONE 페이즈 감지 후 finalizeCollapse()로 정리됨.
+     */
     public void collapseDomain() {
         if (activeDomain == null) return;
-        activeDomain.collapse();
-        activeDomain = null;
+        activeDomain.collapse(); // CLOSING 페이즈 진입, 엔티티 귀환
+    }
 
-        // 영역전개 후 술식 타버림
+    /**
+     * 영역전개 DONE 페이즈 감지 시 호출 — 최종 정리 및 술식 타버림 처리.
+     */
+    private void finalizeCollapse() {
+        if (activeDomain == null) return;
+        DomainManager.instance.unregister(activeDomain);
+        activeDomain = null;
         status.add(new TimedStatusEffect(StatusEffectType.BURNED_TECHNIQUE, 20 * 30));
+    }
+
+    private int getDomainType() {
+        if (technique instanceof InfinityTechnique) return PacketIds.DomainType.INFINITY;
+        if (technique instanceof MizushiTechnique)  return PacketIds.DomainType.MIZUSHI;
+        return PacketIds.DomainType.OTHER;
     }
 
     // ── 틱 처리 ───────────────────────────────────────────────────────────
@@ -223,8 +263,8 @@ public class JPlayer extends JEntity {
         // 영역전개 틱
         if (activeDomain != null) {
             activeDomain.onTick();
-            if (activeDomain.getDomainPhase() == DomainExpansion.DomainPhase.CLOSING) {
-                collapseDomain();
+            if (activeDomain.getDomainPhase() == DomainExpansion.DomainPhase.DONE) {
+                finalizeCollapse();
             }
         }
     }

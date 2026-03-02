@@ -127,6 +127,56 @@ public class JPacketSender {
         send(player, out.toByteArray());
     }
 
+    // ── DOMAIN_VISUAL (0x11) ──────────────────────────────────────────────
+    // S2C: [packetId(1)][action(1)][...action별 payload...]
+    //
+    // START payload: [casterUUID(16)][domainType(4)][cx(8)][cy(8)][cz(8)][maxRadius(4)][isOpen(1)]
+    // END   payload: [casterUUID(16)]
+
+    public static void sendDomainVisualStart(Player player, java.util.UUID casterUuid,
+            int domainType, Location center, float maxRadius, boolean isOpen) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.DOMAIN_VISUAL);
+        out.writeByte(PacketIds.DomainVisualAction.START);
+        out.writeLong(casterUuid.getMostSignificantBits());
+        out.writeLong(casterUuid.getLeastSignificantBits());
+        out.writeInt(domainType);
+        out.writeDouble(center.getX());
+        out.writeDouble(center.getY());
+        out.writeDouble(center.getZ());
+        out.writeFloat(maxRadius);
+        out.writeBoolean(isOpen);
+        send(player, out.toByteArray());
+    }
+
+    public static void sendDomainVisualEnd(Player player, java.util.UUID casterUuid) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.DOMAIN_VISUAL);
+        out.writeByte(PacketIds.DomainVisualAction.END);
+        out.writeLong(casterUuid.getMostSignificantBits());
+        out.writeLong(casterUuid.getLeastSignificantBits());
+        send(player, out.toByteArray());
+    }
+
+    public static void broadcastDomainVisualStart(Location center, java.util.UUID casterUuid,
+            int domainType, Location domainCenter, float maxRadius, boolean isOpen, double range) {
+        if (center.getWorld() == null) return;
+        for (Player p : center.getWorld().getPlayers()) {
+            if (p.getLocation().distance(center) <= range) {
+                sendDomainVisualStart(p, casterUuid, domainType, domainCenter, maxRadius, isOpen);
+            }
+        }
+    }
+
+    public static void broadcastDomainVisualEnd(Location center, java.util.UUID casterUuid, double range) {
+        if (center.getWorld() == null) return;
+        for (Player p : center.getWorld().getPlayers()) {
+            if (p.getLocation().distance(center) <= range) {
+                sendDomainVisualEnd(p, casterUuid);
+            }
+        }
+    }
+
     // ── INFINITY_AO (0x17) ────────────────────────────────────────────────
 
     public static void sendInfinityAoStart(Player player, Location pos, float strength, String id) {

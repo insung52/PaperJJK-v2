@@ -141,17 +141,20 @@ public class MizushiKai extends ActiveSkill {
             p.getWorld().playSound(currentPos, Sound.ENTITY_PLAYER_ATTACK_SWEEP,
                     SoundCategory.PLAYERS, 3f, 0.8f);
         }
-
+        boolean can_particle;
         for (int step = 0; step < STEPS_PER_TICK; step++) {
             currentPos.add(fireDirection.clone().multiply(STEP_DIST));
             if (power <= 0) break;
 
             for (double r = -halfWidth; r <= halfWidth; r += 0.5) {
                 Location sliceLoc = currentPos.clone().add(cutAxis.clone().multiply(r));
-
+                can_particle=false;
                 // 엔티티 피격
                 List<Entity> nearby = (List<Entity>) sliceLoc.getNearbyEntities(0.9, 0.9, 0.9);
                 nearby.remove(p);
+                if(!nearby.isEmpty()){
+                    can_particle=true;
+                }
                 for (Entity e : nearby) {
                     if (hitEntities.contains(e.getUniqueId())) continue;
                     hitEntities.add(e.getUniqueId());
@@ -162,7 +165,7 @@ public class MizushiKai extends ActiveSkill {
                         power -= Math.max(1, power * 0.1);
                         p.getWorld().playSound(sliceLoc, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK,
                                 SoundCategory.PLAYERS, 4f, 0.6f);
-                        if (power <= 0) break;
+
                     }
                 }
 
@@ -171,20 +174,16 @@ public class MizushiKai extends ActiveSkill {
                 if (!blk.isEmpty()) {
                     float h = blk.getType().getHardness();
                     if(blk.isLiquid()){
+                        can_particle=true;
                         queueBreak(sliceLoc);
                         if (Math.random() > 0.9) {
                             p.getWorld().playSound(sliceLoc,
                                     Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR,
                                     SoundCategory.PLAYERS, 0.2f, 0.6f);
                         }
-                        p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc,
-                                1, 0, 0, 0, 0, null, true);
-                        p.getWorld().spawnParticle(Particle.DUST, sliceLoc,
-                                1, 0, 0, 0, 0, DUST_HIT, true);
-                        p.getWorld().spawnParticle(Particle.BLOCK, sliceLoc,
-                                5, 0.3, 0.3, 0.3, 1, blk.getBlockData(), false);
                     }
                     else if ((h >= 0 && h < power)) {
+                        can_particle=true;
                         queueBreak(sliceLoc);
                         power -= Math.pow(h, 1.3) / 5.0;
                         if (Math.random() > 0.9) {
@@ -192,16 +191,19 @@ public class MizushiKai extends ActiveSkill {
                                     Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR,
                                     SoundCategory.PLAYERS, 0.2f, 0.6f);
                         }
-                        p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc,
-                                1, 0, 0, 0, 0, null, true);
-                        p.getWorld().spawnParticle(Particle.DUST, sliceLoc,
-                                1, 0, 0, 0, 0, DUST_HIT, true);
-                        p.getWorld().spawnParticle(Particle.BLOCK, sliceLoc,
-                                5, 0.3, 0.3, 0.3, 1, blk.getBlockData(), false);
                     } else if (h >= 0) {
                         power -= Math.pow(h, 1.3) / 5.0;
                     }
                 }
+                if(can_particle){
+                    p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc,
+                            1, 0, 0, 0, 0, null, true);
+                    p.getWorld().spawnParticle(Particle.DUST, sliceLoc,
+                            1, 0, 0, 0, 0, DUST_HIT, true);
+                    p.getWorld().spawnParticle(Particle.BLOCK, sliceLoc,
+                            5, 0.3, 0.3, 0.3, 1, blk.getBlockData(), false);
+                }
+                if (power <= 0) break;
             }
         }
     }

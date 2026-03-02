@@ -102,6 +102,15 @@ public class PacketIds {
         public static final byte END           = 0x05;
     }
 
+    /** DOMAIN_VISUAL (0x11) action 값 */
+    public static class DomainVisualAction {
+        public static final byte START     = 0x01; // 영역전개 시작 (상세 정보 포함)
+        public static final byte SYNC      = 0x02; // 반경 동기화
+        public static final byte CLASH     = 0x03; // 밀어내기 싸움 개시
+        public static final byte CLASH_END = 0x04; // 밀어내기 싸움 종료
+        public static final byte END       = 0x05; // 영역전개 종료
+    }
+
     public static class DomainFlags {
         public static final byte NORMAL     = 0x00;
         public static final byte NO_BARRIER = 0x01;

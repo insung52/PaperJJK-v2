@@ -2,6 +2,7 @@ package org.justheare.paperjjk.scheduler;
 
 import org.bukkit.Bukkit;
 import org.justheare.paperjjk.PaperJJK;
+import org.justheare.paperjjk.barrier.DomainManager;
 import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.skill.SkillExecution;
 
@@ -76,6 +77,11 @@ public class WorkScheduler {
         // 모든 JEntity 틱 처리 (주력 회복, 쿨다운, 상태이상 등)
         for (var je : JEntityManager.instance.all()) {
             je.onTick();
+        }
+
+        // 영역전개 레지스트리 정리 (DONE 상태 제거)
+        if (DomainManager.instance != null) {
+            DomainManager.instance.onTick();
         }
 
         executions.removeIf(SkillExecution::isDone);

@@ -2,6 +2,7 @@ package org.justheare.paperjjk;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -11,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import org.justheare.paperjjk.entity.JPlayer;
 import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.JPacketSender;
+import org.justheare.paperjjk.technique.InfinityTechnique;
 import org.justheare.paperjjk.technique.Technique;
 import org.justheare.paperjjk.technique.TechniqueFactory;
 
@@ -313,7 +315,15 @@ public class Jcommand implements TabExecutor {
                     player.sendMessage(Component.text("이 술식은 생득 영역이 없습니다.", NamedTextColor.RED));
                     return;
                 }
+                // 기존 결계 블록 복원 (위치 재설정 시)
+                jp.innateTerritory.removeInnateBarrier();
                 jp.innateTerritory.setLocation(player.getLocation());
+
+                // 술식에 따른 결계 블록 재질 결정 및 즉시 배치
+                Material barrierMat = jp.technique instanceof InfinityTechnique
+                        ? Material.BARRIER : Material.BEDROCK;
+                jp.innateTerritory.setupInnateBarrier(barrierMat, 30);
+
                 player.sendMessage(Component.text(
                         "생득 영역 위치 확정: " + formatLoc(player.getLocation()), NamedTextColor.GREEN));
             }
@@ -322,6 +332,8 @@ public class Jcommand implements TabExecutor {
                     player.sendMessage(Component.text("설정된 생득 영역이 없습니다.", NamedTextColor.RED));
                     return;
                 }
+                // 결계 블록 복원 후 초기화
+                jp.innateTerritory.removeInnateBarrier();
                 jp.innateTerritory = null;
                 player.sendMessage(Component.text("생득 영역을 초기화했습니다.", NamedTextColor.YELLOW));
             }

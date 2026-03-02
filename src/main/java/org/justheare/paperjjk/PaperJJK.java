@@ -1,6 +1,7 @@
 package org.justheare.paperjjk;
 
 import org.bukkit.plugin.java.JavaPlugin;
+import org.justheare.paperjjk.barrier.DomainManager;
 import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.JPacketHandler;
 import org.justheare.paperjjk.scheduler.WorkScheduler;
@@ -15,6 +16,9 @@ public class PaperJJK extends JavaPlugin {
 
         // JEntityManager 초기화
         JEntityManager.init();
+
+        // DomainManager 초기화
+        DomainManager.init();
 
         // 플레이어 데이터 로드 (playerdata.yml)
         JData.init(getDataFolder());

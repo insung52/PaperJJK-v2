@@ -147,8 +147,8 @@ public class MizushiTechnique extends Technique {
         InnateTerritory territory = owner instanceof org.justheare.paperjjk.entity.JPlayer jp
                 ? jp.innateTerritory : null;
         if (territory == null) return null;
-        // 복마어주자 (MizushiDomainExpansion) — 추후 구현
-        return null;
+        // isOpen=false: 일반 영역전개 (BEDROCK 결계)
+        return new org.justheare.paperjjk.barrier.MizushiDomainExpansion(owner, territory, false);
     }
 
     @Override

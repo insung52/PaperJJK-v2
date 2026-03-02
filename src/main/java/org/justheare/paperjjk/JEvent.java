@@ -6,10 +6,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.justheare.paperjjk.barrier.DomainExpansion;
+import org.justheare.paperjjk.barrier.DomainManager;
+import org.justheare.paperjjk.barrier.InfinityDomainExpansion;
+import org.justheare.paperjjk.barrier.MizushiDomainExpansion;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -165,6 +170,44 @@ public class JEvent implements Listener {
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
         mobEnvCooldowns.remove(event.getEntity().getUniqueId());
+    }
+
+    // ── 결계 블록 파손 ────────────────────────────────────────────────────
+
+    /**
+     * 플레이어가 결계 블록을 부쉈을 때 호출.
+     * 실제 파괴를 취소하고 onBarrierDamaged() 를 통해 결계 내구도 감소 처리.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (DomainManager.instance == null) return;
+
+        org.bukkit.block.Block block = event.getBlock();
+        DomainExpansion domain = DomainManager.instance.getDomainForBarrierBlock(block.getLocation());
+        if (domain == null) return;
+
+        // 결계 블록 파괴를 취소하고 내구도만 감소
+        event.setCancelled(true);
+
+        // 색인에서 제거 (다음 피격 시 중복 감지 방지)
+        if (domain instanceof InfinityDomainExpansion ide) {
+            ide.removeBarrierBlock(block.getX(), block.getY(), block.getZ());
+        } else if (domain instanceof MizushiDomainExpansion mde) {
+            mde.removeBarrierBlock(block.getX(), block.getY(), block.getZ());
+        }
+
+        // 결계 내구도 감소 (피격당 100)
+        domain.onBarrierDamaged(100);
+
+        // 파괴 연출 (파티클, 소리)
+        block.getWorld().playSound(block.getLocation(),
+                org.bukkit.Sound.BLOCK_STONE_BREAK,
+                org.bukkit.SoundCategory.BLOCKS, 1.5f, 0.7f);
+        block.getWorld().spawnParticle(
+                org.bukkit.Particle.BLOCK,
+                block.getLocation().add(0.5, 0.5, 0.5),
+                20, 0.3, 0.3, 0.3, 0,
+                block.getBlockData());
     }
 
     // ── 플레이어 접속/퇴장 ────────────────────────────────────────────────

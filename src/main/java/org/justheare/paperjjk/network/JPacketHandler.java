@@ -44,6 +44,7 @@ public class JPacketHandler implements PluginMessageListener {
                 case PacketIds.SKILL_RCT               -> handleRct(player, in);
                 case PacketIds.BODY_REIN_KEY           -> handleBodyReinKey(player, in);
                 case PacketIds.DASH                    -> handleDash(player, in);
+                case PacketIds.DOMAIN_EXPANSION        -> handleDomainExpansion(player, in);
                 case PacketIds.HANDSHAKE               -> handleHandshake(player, in);
                 case PacketIds.PLAYER_INFO_REQUEST     -> handlePlayerInfoRequest(player, in);
                 default -> logger.warning(String.format("[Packet] Unknown: 0x%02X from %s", packetId, player.getName()));
@@ -206,6 +207,24 @@ public class JPacketHandler implements PluginMessageListener {
             jp.handleBodyReinKey(true, mode);
         } else {
             jp.handleBodyReinKey(false, BodyReinMode.NONE);
+        }
+    }
+
+    // ── DOMAIN_EXPANSION (0x08): [action(1)] ──────────────────────────────
+    // action: 1=START(전개), 2=END(붕괴)
+
+    private void handleDomainExpansion(Player player, ByteArrayDataInput in) {
+        byte action = in.readByte();
+        JPlayer jp = getJPlayer(player);
+        if (jp == null) return;
+
+        if (action == PacketIds.SkillAction.START) {
+            boolean ok = jp.expandDomain();
+            if (!ok) {
+                logger.info("[Domain] " + player.getName() + " expandDomain() failed.");
+            }
+        } else {
+            jp.collapseDomain();
         }
     }
 
