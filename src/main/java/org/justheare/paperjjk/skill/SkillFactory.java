@@ -1,6 +1,9 @@
 package org.justheare.paperjjk.skill;
 
 import org.justheare.paperjjk.entity.JEntity;
+import org.justheare.paperjjk.skill.mizushi.MizushiFuga;
+import org.justheare.paperjjk.skill.mizushi.MizushiHachi;
+import org.justheare.paperjjk.skill.mizushi.MizushiKai;
 
 import javax.annotation.Nullable;
 
@@ -18,7 +21,9 @@ public class SkillFactory {
             case "infinity_passive" -> new org.justheare.paperjjk.skill.infinity.InfinityPassive(caster);
             case "infinity_ao"      -> new org.justheare.paperjjk.skill.infinity.InfinityAo(caster);
             case "infinity_aka"     -> new org.justheare.paperjjk.skill.infinity.InfinityAka(caster);
-            // case "mizushi_kai"    -> new MizushiKai(caster);
+            case "mizushi_kai"      -> new MizushiKai(caster);
+            case "mizushi_hachi"    -> new MizushiHachi(caster);
+            case "mizushi_fuga"     -> new MizushiFuga(caster);
             default -> null;
         };
     }

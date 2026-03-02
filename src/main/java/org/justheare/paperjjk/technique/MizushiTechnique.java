@@ -59,7 +59,7 @@ public class MizushiTechnique extends Technique {
     public Map<SkillKey, SkillSlot> getDefaultBindings() {
         return Map.of(
             SkillKey.X, new SkillSlot("mizushi_kai",    true,  false),
-            SkillKey.C, new SkillSlot("mizushi_hachi",  true,  false),
+            SkillKey.C, new SkillSlot("mizushi_hachi",  true,  true),   // rechargeable
             SkillKey.V, new SkillSlot("mizushi_fuga",   true,  false),
             SkillKey.B, new SkillSlot("mizushi_domain", false, false)
         );
