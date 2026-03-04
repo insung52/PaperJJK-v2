@@ -127,6 +127,18 @@ public class JPacketSender {
         send(player, out.toByteArray());
     }
 
+    // ── DOMAIN_SETTINGS_RESPONSE (0x16) ──────────────────────────────────
+    // S2C: [packetId(1)][normalRange(4)][noBarrierRange(4)][timestamp(8)]
+
+    public static void sendDomainSettingsResponse(Player player, JPlayer jp) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.DOMAIN_SETTINGS_RESPONSE);
+        out.writeInt(jp.normalDomainRange);
+        out.writeInt(jp.noBarrierDomainRange);
+        out.writeLong(System.currentTimeMillis());
+        send(player, out.toByteArray());
+    }
+
     // ── DOMAIN_VISUAL (0x11) ──────────────────────────────────────────────
     // S2C: [packetId(1)][action(1)][...action별 payload...]
     //

@@ -45,6 +45,7 @@ public class JPacketHandler implements PluginMessageListener {
                 case PacketIds.BODY_REIN_KEY           -> handleBodyReinKey(player, in);
                 case PacketIds.DASH                    -> handleDash(player, in);
                 case PacketIds.DOMAIN_EXPANSION        -> handleDomainExpansion(player, in);
+                case PacketIds.DOMAIN_SETTINGS         -> handleDomainSettings(player, in);
                 case PacketIds.HANDSHAKE               -> handleHandshake(player, in);
                 case PacketIds.PLAYER_INFO_REQUEST     -> handlePlayerInfoRequest(player, in);
                 default -> logger.warning(String.format("[Packet] Unknown: 0x%02X from %s", packetId, player.getName()));
@@ -210,11 +211,15 @@ public class JPacketHandler implements PluginMessageListener {
         }
     }
 
-    // ── DOMAIN_EXPANSION (0x08): [action(1)] ──────────────────────────────
+    // ── DOMAIN_EXPANSION (0x08): [action(1)] [flags(1)] [timestamp(8)] ────
     // action: 1=START(전개), 2=END(붕괴)
+    // flags:  0x00=일반, 0x01=결없영(NO_BARRIER)
 
     private void handleDomainExpansion(Player player, ByteArrayDataInput in) {
         byte action = in.readByte();
+        byte flags  = in.readByte();
+        in.readLong(); // timestamp (미사용)
+
         JPlayer jp = getJPlayer(player);
         if (jp == null) return;
 
@@ -225,6 +230,44 @@ public class JPacketHandler implements PluginMessageListener {
             }
         } else {
             jp.collapseDomain();
+        }
+    }
+
+    // ── DOMAIN_SETTINGS (0x0A): [action(1)] [normalRange(4)] [noBarrierRange(4)] [timestamp(8)] ─
+    // REQUEST: action=0x01 → 서버가 현재 설정 전송
+    // UPDATE:  action=0x02, normalRange, noBarrierRange → 서버가 저장 후 확인 응답
+
+    private void handleDomainSettings(Player player, ByteArrayDataInput in) {
+        byte action = in.readByte();
+        JPlayer jp = getJPlayer(player);
+        if (jp == null) return;
+
+        switch (action) {
+            case PacketIds.DomainSettingsAction.REQUEST -> {
+                in.readLong(); // timestamp
+                JPacketSender.sendDomainSettingsResponse(player, jp);
+            }
+            case PacketIds.DomainSettingsAction.UPDATE -> {
+                int normalRange    = in.readInt();
+                int noBarrierRange = in.readInt();
+                in.readLong(); // timestamp
+
+                if (normalRange < 5 || normalRange > 50) {
+                    player.sendMessage("§c일반 영역전개 범위는 5~50 사이여야 합니다.");
+                    return;
+                }
+                if (noBarrierRange < 5 || noBarrierRange > 200) {
+                    player.sendMessage("§c결없영 범위는 5~200 사이여야 합니다.");
+                    return;
+                }
+
+                jp.normalDomainRange    = normalRange;
+                jp.noBarrierDomainRange = noBarrierRange;
+                org.justheare.paperjjk.JData.save(jp);
+
+                player.sendMessage("§a영역전개 설정 저장됨 §7(일반 " + normalRange + " / 결없영 " + noBarrierRange + ")");
+                JPacketSender.sendDomainSettingsResponse(player, jp);
+            }
         }
     }
 
@@ -241,6 +284,7 @@ public class JPacketHandler implements PluginMessageListener {
             if (jp != null) {
                 JPacketSender.sendCEUpdate(player, jp);
                 JPacketSender.sendPlayerInfoResponse(player, jp);
+                JPacketSender.sendDomainSettingsResponse(player, jp); // 영역 범위 설정 동기화
             }
         } catch (Exception e) {
             logger.warning("[Handshake] Failed to read from " + player.getName());

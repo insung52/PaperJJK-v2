@@ -69,6 +69,11 @@ public class JPlayer extends JEntity {
     @Nullable
     public DomainExpansion activeDomain;
 
+    /** 일반 영역전개 반경 (5~50, 기본 30) */
+    public int normalDomainRange    = 30;
+    /** 결없영 반경 (5~200, 기본 200) */
+    public int noBarrierDomainRange = 200;
+
     // ── 생성자 ────────────────────────────────────────────────────────────
 
     public JPlayer(Player player, double maxCursedEnergy, boolean canReverseOutput) {

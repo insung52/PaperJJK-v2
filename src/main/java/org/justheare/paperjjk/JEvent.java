@@ -247,7 +247,9 @@ public class JEvent implements Listener {
                     mt.loadAdaptationMap(saved.mahoragaAdaptMap);
                 }
             }
-            jp.canGraspAirSurface = saved.canGraspAirSurface;
+            jp.canGraspAirSurface    = saved.canGraspAirSurface;
+            jp.normalDomainRange    = saved.normalDomainRange;
+            jp.noBarrierDomainRange = saved.noBarrierDomainRange;
 
             event.setJoinMessage("§6sorcerer joined");
             PaperJJK.log("[JEvent] Restored: " + player.getName()

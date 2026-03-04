@@ -116,6 +116,14 @@ public class PacketIds {
         public static final byte NO_BARRIER = 0x01;
     }
 
+    /** DOMAIN_SETTINGS (0x0A) action 값 */
+    public static class DomainSettingsAction {
+        /** 클라이언트가 현재 설정 요청 */
+        public static final byte REQUEST = 0x01;
+        /** 클라이언트가 새 설정 전송 */
+        public static final byte UPDATE  = 0x02;
+    }
+
     public static class DomainType {
         public static final int NORMAL     = 0;
         public static final int NO_BARRIER = 1;

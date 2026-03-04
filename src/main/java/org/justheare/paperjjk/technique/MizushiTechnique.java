@@ -144,11 +144,12 @@ public class MizushiTechnique extends Technique {
 
     @Override
     public DomainExpansion createDomain() {
-        InnateTerritory territory = owner instanceof org.justheare.paperjjk.entity.JPlayer jp
-                ? jp.innateTerritory : null;
+        if (!(owner instanceof org.justheare.paperjjk.entity.JPlayer jp)) return null;
+        InnateTerritory territory = jp.innateTerritory;
         if (territory == null) return null;
-        // isOpen=false: 일반 영역전개 (BEDROCK 결계)
-        return new org.justheare.paperjjk.barrier.MizushiDomainExpansion(owner, territory, false);
+        // g + r → 결계 없는 영역전개, 플레이어가 t + r 로 설정한 반경 사용
+        return new org.justheare.paperjjk.barrier.MizushiDomainExpansion(
+                owner, territory, true, jp.noBarrierDomainRange);
     }
 
     @Override

@@ -9,6 +9,7 @@ import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.innate.MizushiInnateTerritory;
 import org.justheare.paperjjk.network.JPacketSender;
 import org.justheare.paperjjk.network.PacketIds;
+import org.justheare.paperjjk.scheduler.WorkScheduler;
 
 /**
  * 복마어주자(Malevolent Shrine) 영역전개.
@@ -26,19 +27,22 @@ import org.justheare.paperjjk.network.PacketIds;
  */
 public class MizushiDomainExpansion extends DomainExpansion {
 
-    private static final int      RANGE_NORMAL    = 30;
-    private static final int      RANGE_OPEN      = 200;
     private static final double   BARRIER_LEVEL   = 10.0;
-    private static final Material BARRIER_MAT     = Material.BEDROCK;
+    private static final Material BARRIER_MAT     = Material.OBSIDIAN;
     private static final int      BLOCKS_PER_TICK = 200;
 
     private final DomainBlockBuilder builder;
+    private final int openRange;
 
     private int syncTickCounter = 0;
 
-    public MizushiDomainExpansion(JEntity caster, InnateTerritory territory, boolean open) {
-        super(caster, territory, open ? RANGE_OPEN : RANGE_NORMAL, open, BARRIER_LEVEL);
-        this.builder = open ? null : new DomainBlockBuilder();
+    /** 결없영 블럭 파괴 파도 (isOpen=true 시에만 사용) */
+    private MizushiDestructionWave destructionWave = null;
+
+    public MizushiDomainExpansion(JEntity caster, InnateTerritory territory, boolean open, int range) {
+        super(caster, territory, range, open, BARRIER_LEVEL);
+        this.openRange = range;
+        this.builder   = open ? null : new DomainBlockBuilder();
     }
 
     // ── DomainExpansion 구현 ──────────────────────────────────────────────
@@ -58,7 +62,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 // 결없영은 포획하지 않음 (captureAllEntitiesInRange의 isOpen 체크로 처리)
             }
         } else {
-            boolean done = builder.buildTick(center, RANGE_NORMAL, BARRIER_MAT, BLOCKS_PER_TICK);
+            boolean done = builder.buildTick(center, (int) getRange(), BARRIER_MAT, BLOCKS_PER_TICK);
             if (done) {
                 domainPhase = DomainPhase.ACTIVE;
                 captureAllEntitiesInRange(); // JEntity + 일반 엔티티 모두 포획
@@ -74,15 +78,24 @@ public class MizushiDomainExpansion extends DomainExpansion {
     protected void onDomainActive() {
         innateTerritory.onActiveTick();
 
-        // 결없영 전용: 매 틱 범위 내 LivingEntity에 해(Kai) 필중
-        if (isOpen && innateTerritory instanceof MizushiInnateTerritory mit) {
-            Location center = caster.entity.getLocation();
-            if (center.getWorld() != null) {
-                center.getWorld().getNearbyEntities(center, RANGE_OPEN, RANGE_OPEN, RANGE_OPEN)
-                        .stream()
-                        .filter(e -> e instanceof org.bukkit.entity.LivingEntity
-                                && !(e instanceof org.bukkit.entity.Player))
-                        .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+        if (isOpen) {
+            // 첫 ACTIVE 틱에 파괴 파도 시작
+            if (destructionWave == null) {
+                Location center = caster.entity.getLocation();
+                destructionWave = new MizushiDestructionWave(center, openRange, true);
+                WorkScheduler.getInstance().register(destructionWave);
+            }
+
+            // 매 틱 범위 내 LivingEntity에 해(Kai) 필중
+            if (innateTerritory instanceof MizushiInnateTerritory mit) {
+                Location center = caster.entity.getLocation();
+                if (center.getWorld() != null) {
+                    center.getWorld().getNearbyEntities(center, openRange, openRange, openRange)
+                            .stream()
+                            .filter(e -> e instanceof org.bukkit.entity.LivingEntity
+                                    && !(e instanceof org.bukkit.entity.Player))
+                            .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+                }
             }
         }
     }
@@ -90,7 +103,11 @@ public class MizushiDomainExpansion extends DomainExpansion {
     @Override
     protected void onClosing() {
         if (isOpen || builder == null) {
-            // 결없영: 블록 없으므로 즉시 DONE
+            // 결없영: 파괴 파도 중단 후 즉시 DONE
+            if (destructionWave != null) {
+                destructionWave.stop();
+                destructionWave = null;
+            }
             domainPhase = DomainPhase.DONE;
             broadcastDomainVisualEnd(caster.entity.getLocation());
             return;

@@ -32,11 +32,11 @@ public class WorkScheduler {
 
     private int taskId = -1;
 
-    /** 활성 스킬 WFQ 틱당 예산 */
-    private int budgetPerTick = 3000;
+    /** 활성 스킬 WFQ 틱당 예산 (결없영 블럭 파괴 수준을 감당하기 위해 10_000 기본값 사용) */
+    private int budgetPerTick = 10_000;
 
     /** draining 큐 틱당 예산 (활성 스킬과 독립) */
-    private int drainBudgetPerTick = 3000;
+    private int drainBudgetPerTick = 10_000;
 
     private WorkScheduler() {}
 

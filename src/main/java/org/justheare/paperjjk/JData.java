@@ -34,6 +34,10 @@ public class JData {
         public int efficiencyLevel = -1;
         public boolean canGraspAirSurface = false;
         public Map<String, Double> mahoragaAdaptMap = null; // null = 없음
+        /** 일반 영역전개 반경 (5~50, 기본 30) */
+        public int normalDomainRange    = 30;
+        /** 결없영 반경 (5~200, 기본 200) */
+        public int noBarrierDomainRange = 200;
     }
 
     // ── 상태 ──────────────────────────────────────────────────────────────
@@ -88,6 +92,8 @@ public class JData {
         d.blackFlashLifeTimeCount = dataConfig.getInt(p + ".blackFlashLifeTimeCount", 0);
         d.efficiencyLevel = dataConfig.getInt(p + ".efficiencyLevel", -1);
         d.canGraspAirSurface = dataConfig.getBoolean(p + ".canGraspAirSurface", false);
+        d.normalDomainRange    = dataConfig.getInt(p + ".normalDomainRange",    30);
+        d.noBarrierDomainRange = dataConfig.getInt(p + ".noBarrierDomainRange", 200);
 
         // Mahoraga 적응 데이터
         String mahoPath = p + ".mahoraga";
@@ -128,6 +134,8 @@ public class JData {
         dataConfig.set(p + ".blackFlashLifeTimeCount", jp.blackFlash.getLifeTimeCount());
         dataConfig.set(p + ".efficiencyLevel", jp.cursedEnergy.getEfficiencyLevel());
         dataConfig.set(p + ".canGraspAirSurface", jp.canGraspAirSurface);
+        dataConfig.set(p + ".normalDomainRange",    jp.normalDomainRange);
+        dataConfig.set(p + ".noBarrierDomainRange", jp.noBarrierDomainRange);
 
         // Mahoraga 적응 데이터
         if (jp.technique instanceof MahoragaTechnique mt) {
