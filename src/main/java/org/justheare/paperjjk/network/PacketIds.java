@@ -50,6 +50,10 @@ public class PacketIds {
     public static final byte SLOT_GAUGE_UPDATE  = 0x30; // 슬롯 충전/발동 게이지
     public static final byte BODY_REIN_UPDATE   = 0x31; // 신체강화 비율
 
+    // ── Server → Client: 참격(해) 효과 ────────────────────────────────────
+    // Format: [packetId(1)][hitX(4)][hitY(4)][hitZ(4)][axisX(4)][axisY(4)][axisZ(4)]
+    public static final byte KAI_SLASH          = 0x32; // 참격 화면 효과
+
     // ── 양방향 ─────────────────────────────────────────────────────────────
     public static final byte HANDSHAKE = 0x20;
 

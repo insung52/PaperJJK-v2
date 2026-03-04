@@ -64,6 +64,7 @@ public class MizushiKai extends ActiveSkill {
 
     private int activeTick = 0;
     private boolean soundPlayed = false;
+    private int effectSentTick = 0;
 
     public MizushiKai(JEntity caster) {
         super(caster, 4.0);
@@ -101,7 +102,7 @@ public class MizushiKai extends ActiveSkill {
         // chargedOutput: CE 누적량. 게이지 비율과 같은 방향으로 파워 환산
         power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0);
 
-        fireLocation  = p.getEyeLocation().clone();
+        fireLocation  = p.getEyeLocation().clone().add((Math.random()-0.5),(Math.random()-0.5),(Math.random()-0.5));
         fireDirection = fireLocation.getDirection().normalize();
         currentPos    = fireLocation.clone();
 
@@ -122,12 +123,16 @@ public class MizushiKai extends ActiveSkill {
         } else {
             cutAxis = randomPerpendicular(fireDirection);
         }
+        cutAxis.multiply(-1);
     }
 
     // ── 발동 중 ───────────────────────────────────────────────────────────
 
     @Override
     protected void onActiveTick() {
+        if(effectSentTick>0){
+            effectSentTick--;
+        }
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
 
@@ -143,6 +148,7 @@ public class MizushiKai extends ActiveSkill {
         }
         boolean can_particle;
         for (int step = 0; step < STEPS_PER_TICK; step++) {
+
             currentPos.add(fireDirection.clone().multiply(STEP_DIST));
             if (power <= 0) break;
 
@@ -165,6 +171,8 @@ public class MizushiKai extends ActiveSkill {
                         power -= Math.max(1, power * 0.1);
                         p.getWorld().playSound(sliceLoc, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK,
                                 SoundCategory.PLAYERS, 4f, 0.6f);
+
+                        // 참격 화면 효과 — 첫 적중 시 1회만 전송
 
                     }
                 }
@@ -196,12 +204,14 @@ public class MizushiKai extends ActiveSkill {
                     }
                 }
                 if(can_particle){
-                    p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc,
-                            1, 0, 0, 0, 0, null, true);
-                    p.getWorld().spawnParticle(Particle.DUST, sliceLoc,
-                            1, 0, 0, 0, 0, DUST_HIT, true);
-                    p.getWorld().spawnParticle(Particle.BLOCK, sliceLoc,
-                            5, 0.3, 0.3, 0.3, 1, blk.getBlockData(), false);
+                    if(effectSentTick==0){
+                        effectSentTick=5;
+                        org.justheare.paperjjk.network.JPacketSender.broadcastKaiSlash(
+                                sliceLoc.clone(), cutAxis, 64.0);
+                    }
+                    //p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc, 1, 0, 0, 0, 0, null, true);
+                    //p.getWorld().spawnParticle(Particle.DUST, sliceLoc, 1, 0, 0, 0, 0, DUST_HIT, true);
+                    //p.getWorld().spawnParticle(Particle.BLOCK, sliceLoc, 5, 0.3, 0.3, 0.3, 1, blk.getBlockData(), false);
                 }
                 if (power <= 0) break;
             }

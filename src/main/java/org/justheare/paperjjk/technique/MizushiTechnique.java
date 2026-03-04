@@ -84,22 +84,18 @@ public class MizushiTechnique extends Technique {
         if (world == null) return;
 
         // 시전자→대상 방향의 수직 벡터 = 참격 축
-        Vector toTarget = center.toVector().subtract(owner.entity.getLocation().toVector());
-        Vector slashAxis;
-        if (toTarget.length() > 0.01) {
-            Vector ref = Math.abs(toTarget.normalize().getY()) < 0.9
-                    ? new Vector(0, 1, 0) : new Vector(1, 0, 0);
-            slashAxis = toTarget.normalize().crossProduct(ref).normalize();
-        } else {
-            slashAxis = new Vector(1, 0, 0);
-        }
+        Vector slashAxis = new Vector((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5));
 
-        // 참격 라인 파티클
-        for (double r = -0.9; r <= 0.9; r += 0.18) {
+
+        // 클라이언트 모드에 참격 post-processing 효과 전송 (64 블록 반경 수신자)
+        org.justheare.paperjjk.network.JPacketSender.broadcastKaiSlash(center, slashAxis, 64.0);
+
+        // 클라이언트 모드가 없는 플레이어를 위한 fallback 파티클
+        /*for (double r = -0.9; r <= 0.9; r += 0.18) {
             Location sliceLoc = center.clone().add(slashAxis.clone().multiply(r));
-            world.spawnParticle(Particle.DUST, sliceLoc, 1, 0.03, 0.03, 0.03, 0, DUST_SLASH, true);
-            world.spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc, 1, 0, 0, 0, 0, null, true);
-        }
+            //world.spawnParticle(Particle.DUST, sliceLoc, 1, 0.03, 0.03, 0.03, 0, DUST_SLASH, true);
+            //world.spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc, 1, 0, 0, 0, 0, null, true);
+        }*/
 
         world.playSound(center, Sound.ENTITY_PLAYER_ATTACK_SWEEP,
                 SoundCategory.PLAYERS, 2f, 1.2f);

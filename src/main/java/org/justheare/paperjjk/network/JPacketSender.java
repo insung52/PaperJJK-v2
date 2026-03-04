@@ -4,6 +4,7 @@ import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.entity.JPlayer;
 import org.justheare.paperjjk.entity.BodyReinforcement;
@@ -375,6 +376,31 @@ public class JPacketSender {
     public static void broadcastInfinityMurasakiEnd(Location pos, String id, double range) {
         for (Player p : pos.getWorld().getPlayers()) {
             if (p.getLocation().distance(pos) <= range) sendInfinityMurasakiEnd(p, id);
+        }
+    }
+
+    // ── KAI_SLASH (0x32) ──────────────────────────────────────────────────
+    // S2C: [packetId(1)][hitX(4)][hitY(4)][hitZ(4)][axisX(4)][axisY(4)][axisZ(4)]
+    // hitPos: 참격 중심 위치 (월드 좌표), slashAxis: 정규화된 참격 방향 벡터
+
+    public static void sendKaiSlash(Player player, Location hitPos, Vector slashAxis) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.KAI_SLASH);
+        out.writeFloat((float) hitPos.getX());
+        out.writeFloat((float) hitPos.getY());
+        out.writeFloat((float) hitPos.getZ());
+        out.writeFloat((float) slashAxis.getX());
+        out.writeFloat((float) slashAxis.getY());
+        out.writeFloat((float) slashAxis.getZ());
+        send(player, out.toByteArray());
+    }
+
+    public static void broadcastKaiSlash(Location hitPos, Vector slashAxis, double range) {
+        if (hitPos.getWorld() == null) return;
+        for (Player p : hitPos.getWorld().getPlayers()) {
+            if (p.getLocation().distance(hitPos) <= range) {
+                sendKaiSlash(p, hitPos, slashAxis);
+            }
         }
     }
 }
