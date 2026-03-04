@@ -144,12 +144,17 @@ public class MizushiTechnique extends Technique {
 
     @Override
     public DomainExpansion createDomain() {
+        return createDomain(false);
+    }
+
+    @Override
+    public DomainExpansion createDomain(boolean open) {
         if (!(owner instanceof org.justheare.paperjjk.entity.JPlayer jp)) return null;
         InnateTerritory territory = jp.innateTerritory;
         if (territory == null) return null;
-        // g + r → 결계 없는 영역전개, 플레이어가 t + r 로 설정한 반경 사용
+        int range = open ? jp.noBarrierDomainRange : jp.normalDomainRange;
         return new org.justheare.paperjjk.barrier.MizushiDomainExpansion(
-                owner, territory, true, jp.noBarrierDomainRange);
+                owner, territory, open, range);
     }
 
     @Override

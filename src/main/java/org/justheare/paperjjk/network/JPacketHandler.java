@@ -224,7 +224,8 @@ public class JPacketHandler implements PluginMessageListener {
         if (jp == null) return;
 
         if (action == PacketIds.SkillAction.START) {
-            boolean ok = jp.expandDomain();
+            boolean isOpen = (flags & 0x01) != 0;
+            boolean ok = jp.expandDomain(isOpen);
             if (!ok) {
                 logger.info("[Domain] " + player.getName() + " expandDomain() failed.");
             }

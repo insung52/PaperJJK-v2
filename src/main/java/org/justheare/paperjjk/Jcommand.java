@@ -323,6 +323,7 @@ public class Jcommand implements TabExecutor {
                 Material barrierMat = jp.technique instanceof InfinityTechnique
                         ? Material.BARRIER : Material.BEDROCK;
                 jp.innateTerritory.setupInnateBarrier(barrierMat, 30);
+                JData.save(jp); // 위치 즉시 저장 (크래시 대비)
 
                 player.sendMessage(Component.text(
                         "생득 영역 위치 확정: " + formatLoc(player.getLocation()), NamedTextColor.GREEN));
@@ -335,6 +336,8 @@ public class Jcommand implements TabExecutor {
                 // 결계 블록 복원 후 초기화
                 jp.innateTerritory.removeInnateBarrier();
                 jp.innateTerritory = null;
+                JData.save(jp); // innate 데이터 즉시 삭제 저장
+
                 player.sendMessage(Component.text("생득 영역을 초기화했습니다.", NamedTextColor.YELLOW));
             }
             default -> player.sendMessage(Component.text(

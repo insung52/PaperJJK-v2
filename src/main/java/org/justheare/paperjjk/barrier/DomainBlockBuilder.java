@@ -8,6 +8,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 /**
  * 영역전개 결계 구(球) 블록의 점진적 생성 및 복원을 담당.
@@ -162,4 +163,47 @@ public class DomainBlockBuilder {
     }
 
     public int getSnapshotCount() { return snapshots.size(); }
+
+    // ── 직렬화 / 역직렬화 (서버 재시작 후 복원) ──────────────────────────────
+
+    /**
+     * 스냅샷 목록을 문자열 리스트로 직렬화.
+     * 형식: "x|y|z|worldName|MATERIAL|blockDataString"
+     * 필드 구분자로 '|' 사용 (blockDataString 내부에 '|' 없음).
+     */
+    public List<String> serializeSnapshots() {
+        List<String> result = new ArrayList<>(snapshots.size());
+        for (BlockSnapshot s : snapshots) {
+            result.add(s.x() + "|" + s.y() + "|" + s.z() + "|"
+                    + s.worldName() + "|" + s.material().name() + "|"
+                    + s.data().getAsString());
+        }
+        return result;
+    }
+
+    /**
+     * 문자열 리스트에서 스냅샷을 복원한다 (서버 재시작 후 호출).
+     * buildIndex 를 snapshots.size() 로 설정해 빌드 완료로 표시.
+     */
+    public void loadSnapshots(List<String> lines) {
+        for (String line : lines) {
+            if (line == null || line.isBlank()) continue;
+            String[] parts = line.split("\\|", 6);
+            if (parts.length < 6) continue;
+            try {
+                int x            = Integer.parseInt(parts[0].trim());
+                int y            = Integer.parseInt(parts[1].trim());
+                int z            = Integer.parseInt(parts[2].trim());
+                String worldName = parts[3].trim();
+                Material mat     = Material.valueOf(parts[4].trim());
+                BlockData data   = Bukkit.createBlockData(parts[5].trim());
+                snapshots.add(new BlockSnapshot(x, y, z, worldName, mat, data));
+                barrierBlockKeys.add(x + "," + y + "," + z);
+            } catch (Exception e) {
+                Logger.getLogger("PaperJJK").warning("[DomainBlockBuilder] Snapshot parse failed: " + line);
+            }
+        }
+        buildIndex   = snapshots.size();
+        buildStarted = !snapshots.isEmpty();
+    }
 }

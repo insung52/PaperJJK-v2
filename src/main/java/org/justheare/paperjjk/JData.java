@@ -8,7 +8,9 @@ import org.justheare.paperjjk.technique.MahoragaTechnique;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -38,6 +40,11 @@ public class JData {
         public int normalDomainRange    = 30;
         /** 결없영 반경 (5~200, 기본 200) */
         public int noBarrierDomainRange = 200;
+        /** 생득 영역 중심 월드 이름 (null = 설정 안됨) */
+        public String innateWorld = null;
+        public double innateX, innateY, innateZ;
+        /** 생득 영역 원본 블록 스냅샷 (null or empty = 없음) */
+        public List<String> innateSnapshots = null;
     }
 
     // ── 상태 ──────────────────────────────────────────────────────────────
@@ -95,6 +102,16 @@ public class JData {
         d.normalDomainRange    = dataConfig.getInt(p + ".normalDomainRange",    30);
         d.noBarrierDomainRange = dataConfig.getInt(p + ".noBarrierDomainRange", 200);
 
+        // 생득 영역 데이터
+        if (dataConfig.contains(p + ".innate.world")) {
+            d.innateWorld = dataConfig.getString(p + ".innate.world");
+            d.innateX     = dataConfig.getDouble(p + ".innate.x");
+            d.innateY     = dataConfig.getDouble(p + ".innate.y");
+            d.innateZ     = dataConfig.getDouble(p + ".innate.z");
+            List<String> snaps = dataConfig.getStringList(p + ".innate.snapshots");
+            d.innateSnapshots = snaps.isEmpty() ? null : snaps;
+        }
+
         // Mahoraga 적응 데이터
         String mahoPath = p + ".mahoraga";
         if (dataConfig.contains(mahoPath)) {
@@ -136,6 +153,22 @@ public class JData {
         dataConfig.set(p + ".canGraspAirSurface", jp.canGraspAirSurface);
         dataConfig.set(p + ".normalDomainRange",    jp.normalDomainRange);
         dataConfig.set(p + ".noBarrierDomainRange", jp.noBarrierDomainRange);
+
+        // 생득 영역 데이터
+        if (jp.innateTerritory != null && jp.innateTerritory.isReady()) {
+            var loc = jp.innateTerritory.getCenterLocation();
+            if (loc != null && loc.getWorld() != null) {
+                dataConfig.set(p + ".innate.world", loc.getWorld().getName());
+                dataConfig.set(p + ".innate.x", loc.getX());
+                dataConfig.set(p + ".innate.y", loc.getY());
+                dataConfig.set(p + ".innate.z", loc.getZ());
+                var builder = jp.innateTerritory.getInnateBuilder();
+                dataConfig.set(p + ".innate.snapshots",
+                        builder != null ? builder.serializeSnapshots() : new ArrayList<String>());
+            }
+        } else {
+            dataConfig.set(p + ".innate", null);
+        }
 
         // Mahoraga 적응 데이터
         if (jp.technique instanceof MahoragaTechnique mt) {

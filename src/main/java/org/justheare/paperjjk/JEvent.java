@@ -251,6 +251,23 @@ public class JEvent implements Listener {
             jp.normalDomainRange    = saved.normalDomainRange;
             jp.noBarrierDomainRange = saved.noBarrierDomainRange;
 
+            // 생득 영역 복원
+            if (saved.innateWorld != null && jp.technique != null) {
+                jp.innateTerritory = jp.technique.createTerritory();
+                if (jp.innateTerritory != null) {
+                    org.bukkit.World innateWorld = org.bukkit.Bukkit.getWorld(saved.innateWorld);
+                    if (innateWorld != null) {
+                        org.bukkit.Location innateLoc = new org.bukkit.Location(
+                                innateWorld, saved.innateX, saved.innateY, saved.innateZ);
+                        jp.innateTerritory.restoreFromSave(innateLoc, saved.innateSnapshots);
+                        PaperJJK.log("[JEvent] Innate territory restored: "
+                                + saved.innateWorld + " " + (int)saved.innateX
+                                + "/" + (int)saved.innateY + "/" + (int)saved.innateZ
+                                + " snapshots=" + (saved.innateSnapshots != null ? saved.innateSnapshots.size() : 0));
+                    }
+                }
+            }
+
             event.setJoinMessage("§6sorcerer joined");
             PaperJJK.log("[JEvent] Restored: " + player.getName()
                     + " tech=" + saved.techniqueName

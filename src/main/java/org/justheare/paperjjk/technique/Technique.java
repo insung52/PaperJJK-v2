@@ -57,6 +57,12 @@ public abstract class Technique {
     public abstract DomainExpansion createDomain();
 
     /**
+     * 결없영 여부를 포함한 영역전개 생성.
+     * 기본 구현은 open 플래그를 무시하고 createDomain() 위임.
+     */
+    public DomainExpansion createDomain(boolean open) { return createDomain(); }
+
+    /**
      * 술식반전 버전 반환 (ao → aka 등).
      * 술식반전 불가한 술식은 null 반환.
      */

@@ -161,6 +161,23 @@ public abstract class InnateTerritory {
         originalLocations.clear();
     }
 
+    // ── 저장/복원 ─────────────────────────────────────────────────────────
+
+    public DomainBlockBuilder getInnateBuilder() { return innateBuilder; }
+
+    /**
+     * 서버 재시작 후 호출 — 저장된 위치와 스냅샷으로 생득 영역을 복원한다.
+     * 블록은 이미 세계에 존재하므로 재배치 없이 빌더만 초기화.
+     */
+    public void restoreFromSave(Location center, List<String> snapshotLines) {
+        this.centerLocation = center.clone();
+        this.isReady = true;
+        if (snapshotLines != null && !snapshotLines.isEmpty()) {
+            innateBuilder = new DomainBlockBuilder();
+            innateBuilder.loadSnapshots(snapshotLines);
+        }
+    }
+
     // ── 술식별 구현 ───────────────────────────────────────────────────────
 
     /** 매 틱 처리 — 필중 효과, 시전자 강화 */

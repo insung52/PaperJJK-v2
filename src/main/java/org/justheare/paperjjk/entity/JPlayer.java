@@ -152,7 +152,9 @@ public class JPlayer extends JEntity {
 
     // ── 영역전개 ──────────────────────────────────────────────────────────
 
-    public boolean expandDomain() {
+    public boolean expandDomain() { return expandDomain(false); }
+
+    public boolean expandDomain(boolean open) {
         if (technique == null || isTechniqueBlocked()) return false;
         if (innateTerritory == null || !innateTerritory.isReady()) {
             player.sendMessage("생득 영역이 설정되지 않았습니다. (jjk id build)");
@@ -167,7 +169,7 @@ public class JPlayer extends JEntity {
             return false;
         }
 
-        activeDomain = technique.createDomain();
+        activeDomain = technique.createDomain(open);
         if (activeDomain == null) {
             // 소모된 CE 환불
             cursedEnergy.setCurrent(cursedEnergy.getCurrent() + 50000);
