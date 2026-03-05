@@ -139,7 +139,7 @@ public class MizushiKai extends ActiveSkill {
         if (power <= 0 || activeTick >= MAX_ACTIVE_TICKS) { end(); return; }
         activeTick++;
 
-        double halfWidth = (power / 14.0) * ((double)(activeTick + 1) / 5.0) + 1.0;
+        double halfWidth = (power / 10.0) * ((double)(Math.pow(activeTick,1.4) + 1) / 5.0) + 1.0;
 
         if (!soundPlayed) {
             soundPlayed = true;
