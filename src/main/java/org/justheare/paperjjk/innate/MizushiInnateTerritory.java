@@ -3,12 +3,14 @@ package org.justheare.paperjjk.innate;
 import org.bukkit.entity.LivingEntity;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.entity.JEntity;
+import org.justheare.paperjjk.skill.mizushi.HachiStrike;
 
 /**
  * 복마어주자(Malevolent Shrine) 생득 영역.
  *
- * 주력(CE) 있는 대상 → '팔(Hachi)' 필중: CE 우열 기반 참격 피해.
- * 주력 없는 대상 또는 결없영(isOpen) 모드 → '해(Kai)' 필중: 순수 CE 기반 직선 참격.
+ * 주력(CE) 있는 JEntity → '팔(Hachi)' 필중: CE 우열 기반 참격 피해.
+ * 주력 없는 JEntity → '해(Kai)' 필중: 순수 CE 기반 직선 참격.
+ * 바닐라 몹(비-JEntity) → '팔(Hachi)' 필중 (applySureHitVanilla).
  * 4틱 간격으로 데미지 적용 (틱당 연속 적용 방지).
  */
 public class MizushiInnateTerritory extends InnateTerritory {
@@ -54,24 +56,15 @@ public class MizushiInnateTerritory extends InnateTerritory {
     // ── 필중 효과 ─────────────────────────────────────────────────────────
 
     /**
-     * 팔(Hachi) 필중: CE 우열 기반 참격 데미지.
-     * 수식: casterCE^0.15 - max(0, targetCE^0.05 - 5)
-     * 최소 데미지 0.1 보장.
+     * 팔(Hachi) 필중: HachiStrike 모듈 사용.
+     * power = 시전자 현재CE / 최대CE * 100 (0~100 정규화)
      */
     private void applyHachi(JEntity target) {
-        double casterCE = owner.cursedEnergy.getMax();
-        double targetCE = target.cursedEnergy.getMax();
-
-        double output;
-        if (Math.pow(targetCE, 0.2) < 5) {
-            output = Math.pow(casterCE, 0.15);
-        } else {
-            output = Math.pow(casterCE, 0.15) - Math.pow(targetCE, 0.05);
-        }
-        output = Math.max(0.1, output);
-
-        DamageInfo.setnodamagetick(target.getLivingEntity());
-        target.receiveDamage(DamageInfo.domainSureHit(owner, output * 100, "mizushi_domain_hachi"));
+        double maxCE = owner.cursedEnergy.getMax();
+        double power = maxCE > 0
+                ? owner.cursedEnergy.getCurrent() / maxCE * 100.0
+                : 0.0;
+        HachiStrike.applyDomain(owner, target, power);
     }
 
     /**
@@ -85,12 +78,13 @@ public class MizushiInnateTerritory extends InnateTerritory {
     }
 
     /**
-     * 결없영 전용: 일반 LivingEntity(비-JEntity)에게도 해(Kai) 필중 적용.
+     * 일반 LivingEntity(비-JEntity)에게 팔(Hachi) 필중 적용.
+     * 일반 영역전개(capturedVanillaEntities) 및 결없영 모두 사용.
      */
     public void applySureHitVanilla(LivingEntity mob) {
         if (damageTickCounter % DAMAGE_INTERVAL != 0) return;
-        double output = Math.pow(owner.cursedEnergy.getMax(), 0.11);
-        DamageInfo.setnodamagetick(mob);
-        mob.damage(DamageInfo.outputToDamage(output * 100));
+        double maxCE = owner.cursedEnergy.getMax();
+        double power = maxCE > 0 ? owner.cursedEnergy.getCurrent() / maxCE * 100.0 : 0.0;
+        HachiStrike.applyDomainVanilla(owner, mob, power);
     }
 }

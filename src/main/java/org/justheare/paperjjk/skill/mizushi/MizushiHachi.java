@@ -1,8 +1,6 @@
 package org.justheare.paperjjk.skill.mizushi;
 
-import org.bukkit.Color;
 import org.bukkit.Location;
-import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.Entity;
@@ -11,10 +9,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.util.Vector;
 import org.justheare.paperjjk.damage.DamageInfo;
-import org.justheare.paperjjk.damage.DamageType;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.entity.JPlayer;
-import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.skill.ActiveSkill;
 
@@ -32,9 +28,6 @@ import java.util.List;
  * rechargeable=true: 키 재홀드로 파워 보충 가능.
  */
 public class MizushiHachi extends ActiveSkill {
-
-    private static final Particle.DustOptions DUST_BARRIER =
-            new Particle.DustOptions(Color.fromRGB(180, 0, 0), 0.4f);
 
     /** 재충전 틱당 파워 증가 */
     private static final double POWER_PER_CHARGE_TICK = 3.0;
@@ -177,48 +170,14 @@ public class MizushiHachi extends ActiveSkill {
                     entity.setVelocity( entity.getVelocity().add( pushDir.normalize().multiply(1) ) );
                 }
                 if (tickCount % DAMAGE_INTERVAL == 0 && entity instanceof LivingEntity living) {
-                    applyHachiDamage(living, dist);
+                    HachiStrike.apply(caster, living, entityCenter, power);
                     living.addScoreboardTag("hachi");
                 }
-                spawnBarrierParticle(center, entityCenter, radius);
                 power -= 5;
             }
         }
     }
 
-    private void applyHachiDamage(LivingEntity living, double dist) {
-        JEntity targetJE = JEntityManager.instance != null
-                ? JEntityManager.instance.get(living.getUniqueId()) : null;
-
-        double output;
-        if (targetJE != null) {
-            double casterCE = caster.cursedEnergy.getCurrent();
-            double targetCE = targetJE.cursedEnergy.getCurrent();
-            if (Math.pow(targetCE, 0.2) < 5) {
-                output = Math.pow(casterCE, 0.15) + power / 10.0;
-            } else {
-                output = (Math.pow(casterCE, 0.15) - Math.pow(targetCE, 0.05)) + power / 10.0;
-            }
-        } else {
-            output = Math.pow(caster.cursedEnergy.getCurrent(), 0.10) + power / 10.0;
-        }
-
-        DamageInfo.setnodamagetick(living);
-        if (targetJE != null) {
-            targetJE.receiveDamage(DamageInfo.skillHit(caster, DamageType.CURSED,
-                    output * 100, "mizushi_hachi"));
-        } else {
-            living.damage(DamageInfo.outputToDamage(output * 100));
-        }
-    }
-
-    private void spawnBarrierParticle(Location center, Location entityCenter, double radius) {
-        Vector dir = entityCenter.toVector().subtract(center.toVector());
-        if (dir.length() < 0.01) return;
-        Location particleLoc = center.clone().add(dir.normalize().multiply(radius));
-        center.getWorld().spawnParticle(Particle.DUST, particleLoc,
-                3, 0.2, 0.2, 0.2, 0, DUST_BARRIER, true);
-    }
 
     // ── HUD ──────────────────────────────────────────────────────────────
 

@@ -78,6 +78,8 @@ public class MizushiDomainExpansion extends DomainExpansion {
     protected void onDomainActive() {
         innateTerritory.onActiveTick();
 
+        if (!(innateTerritory instanceof MizushiInnateTerritory mit)) return;
+
         if (isOpen) {
             // 첫 ACTIVE 틱에 파괴 파도 시작
             if (destructionWave == null) {
@@ -86,15 +88,20 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 WorkScheduler.getInstance().register(destructionWave);
             }
 
-            // 매 틱 범위 내 LivingEntity에 해(Kai) 필중
-            if (innateTerritory instanceof MizushiInnateTerritory mit) {
-                Location center = caster.entity.getLocation();
-                if (center.getWorld() != null) {
-                    center.getWorld().getNearbyEntities(center, openRange, openRange, openRange)
-                            .stream()
-                            .filter(e -> e instanceof org.bukkit.entity.LivingEntity
-                                    && !(e instanceof org.bukkit.entity.Player))
-                            .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+            // 매 틱 범위 내 LivingEntity에 팔(Hachi) 필중
+            Location center = caster.entity.getLocation();
+            if (center.getWorld() != null) {
+                center.getWorld().getNearbyEntities(center, openRange, openRange, openRange)
+                        .stream()
+                        .filter(e -> e instanceof org.bukkit.entity.LivingEntity
+                                && !(e instanceof org.bukkit.entity.Player))
+                        .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+            }
+        } else {
+            // 일반 영역전개: 포획된 바닐라 몹에게 팔(Hachi) 필중
+            for (org.bukkit.entity.Entity e : capturedVanillaEntities) {
+                if (e instanceof org.bukkit.entity.LivingEntity living && e.isValid()) {
+                    mit.applySureHitVanilla(living);
                 }
             }
         }

@@ -395,6 +395,23 @@ public class JPacketSender {
         send(player, out.toByteArray());
     }
 
+    // ── HACHI_SLASH (0x33) ─────────────────────────────────────────────────
+    // S2C: [packetId(1)][hitX(4)][hitY(4)][hitZ(4)]
+    // 격자 회전 각도는 클라이언트가 랜덤 생성
+
+    public static void broadcastHachiSlash(Location hitPos, double range) {
+        if (hitPos.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.HACHI_SLASH);
+        out.writeFloat((float) hitPos.getX());
+        out.writeFloat((float) hitPos.getY());
+        out.writeFloat((float) hitPos.getZ());
+        byte[] data = out.toByteArray();
+        for (Player p : hitPos.getWorld().getPlayers()) {
+            if (p.getLocation().distance(hitPos) <= range) send(p, data);
+        }
+    }
+
     public static void broadcastKaiSlash(Location hitPos, Vector slashAxis, double range) {
         if (hitPos.getWorld() == null) return;
         for (Player p : hitPos.getWorld().getPlayers()) {
