@@ -66,6 +66,8 @@ public class MizushiDestructionWave implements SkillExecution {
      * 파도 확장을 즉시 중단하고 미처리 항목을 모두 폐기.
      * isDone() 이 곧 true 가 되어 WorkScheduler 에서 자동 제거됨.
      */
+    public int getCurrentRadius() { return currentRadius; }
+
     public void stop() {
         stopped  = true;
         waveDone = true;
