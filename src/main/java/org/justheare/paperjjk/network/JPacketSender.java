@@ -190,6 +190,26 @@ public class JPacketSender {
         }
     }
 
+    // SYNC payload: [casterUUID(16)][radius(4f)]
+    public static void sendDomainVisualSync(Player player, java.util.UUID casterUuid, float radius) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.DOMAIN_VISUAL);
+        out.writeByte(PacketIds.DomainVisualAction.SYNC);
+        out.writeLong(casterUuid.getMostSignificantBits());
+        out.writeLong(casterUuid.getLeastSignificantBits());
+        out.writeFloat(radius);
+        send(player, out.toByteArray());
+    }
+
+    public static void broadcastDomainVisualSync(Location center, java.util.UUID casterUuid, float radius, double range) {
+        if (center.getWorld() == null) return;
+        for (Player p : center.getWorld().getPlayers()) {
+            if (p.getLocation().distance(center) <= range) {
+                sendDomainVisualSync(p, casterUuid, radius);
+            }
+        }
+    }
+
     // ── INFINITY_AO (0x17) ────────────────────────────────────────────────
 
     public static void sendInfinityAoStart(Player player, Location pos, float strength, String id) {

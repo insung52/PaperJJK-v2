@@ -82,7 +82,8 @@ public class MizushiDomainExpansion extends DomainExpansion {
         // 여기서 5틱마다 sync 브로드캐스트 (파괴 파도의 현재 반경 전송)
         if (isOpen && ++syncTickCounter % 5 == 0) {
             float waveRadius = destructionWave != null ? (float) destructionWave.getCurrentRadius() : 0f;
-            broadcastDomainVisualSync(caster.entity.getLocation(), waveRadius);
+            JPacketSender.broadcastDomainVisualSync(
+                caster.entity.getLocation(), caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
         }
 
         if (!(innateTerritory instanceof MizushiInnateTerritory mit)) return;
