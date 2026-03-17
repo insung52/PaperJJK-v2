@@ -80,7 +80,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
 
         // 결없영(isOpen): onExpanding이 1틱만 돌고 즉시 ACTIVE로 전환되므로
         // 여기서 5틱마다 sync 브로드캐스트 (파괴 파도의 현재 반경 전송)
-        if (isOpen && ++syncTickCounter % 5 == 0) {
+        if (isOpen && ++syncTickCounter % 2 == 0) {
             float waveRadius = destructionWave != null ? (float) destructionWave.getCurrentRadius() : 0f;
             JPacketSender.broadcastDomainVisualSync(
                 caster.entity.getLocation(), caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
@@ -89,9 +89,11 @@ public class MizushiDomainExpansion extends DomainExpansion {
         if (!(innateTerritory instanceof MizushiInnateTerritory mit)) return;
 
         if (isOpen) {
-            // 첫 ACTIVE 틱에 파괴 파도 시작
+            // 첫 ACTIVE 틱에 파괴 파도 시작 + 클라이언트에 START 패킷 전송
             if (destructionWave == null) {
                 Location center = caster.entity.getLocation();
+                // isOpen=true는 onExpanding이 1틱 만에 끝나 START 브로드캐스트가 안 보내지므로 여기서 전송
+                broadcastDomainVisualSync(center, 0f);
                 destructionWave = new MizushiDestructionWave(center, openRange, true);
                 WorkScheduler.getInstance().register(destructionWave);
             }

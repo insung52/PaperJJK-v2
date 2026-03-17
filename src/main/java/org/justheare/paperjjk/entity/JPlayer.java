@@ -368,11 +368,11 @@ public class JPlayer extends JEntity {
         if (player.getLocation().add(0,-1,0).getBlock().isPassable() && !canGraspAirSurface) return;
         double bodyReinCurrent = bodyReinforcement.getCurrent();
         double log2val   = Math.pow(bodyReinCurrent + 1,0.5);
-        PaperJJK.log("what"+ log2val);
-        double dashSpeed = 1.0 + log2val * 0.05;
+        //PaperJJK.log("what"+ log2val);
+        double dashSpeed = 1.0 + log2val * 0.03;
 
         // Infinity 술식은 ao 특성으로 속도 1.5배
-        if (technique instanceof InfinityTechnique) {
+        if (technique instanceof InfinityTechnique && !isTechniqueBlocked()) {
             dashSpeed *= 1.5;
         }
 

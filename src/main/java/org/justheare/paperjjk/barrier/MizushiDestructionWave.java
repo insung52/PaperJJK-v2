@@ -23,17 +23,20 @@ import java.util.*;
 public class MizushiDestructionWave implements SkillExecution {
 
     /** 틱당 순회할 최대 위치 수 (위치 검색 비용 제한, 구 표면적 한도) */
-    private static final int MAX_POS_PER_TICK = 200_000;
+    private static final int MAX_POS_PER_TICK = 100_000;
+
+    /** 틱당 최대 반경 증가량 (블록). 시각적 확장 속도를 제어한다. */
+    public static final int MAX_RADIUS_PER_TICK = 4;
 
     /** 블럭 파괴 기본 랜덤 딜레이 (0~JITTER 틱) */
-    private static final int JITTER = 12;
+    private static final int JITTER = 20;
 
     /**
      * 경도(hardness) 1당 추가되는 최대 딜레이 배율 (틱).
      * 예) 돌(1.5) → +6 틱, 흑요석(50) → +200 틱 (~10초).
      * 딜레이 자체가 저항을 표현하므로 flushBlocks 에서는 별도 확률 체크 없이 즉시 파괴.
      */
-    private static final float HARDNESS_DELAY_SCALE = 4.0f;
+    private static final float HARDNESS_DELAY_SCALE = 40.0f;
 
     private final Location center;
     private final int      maxRadius;
@@ -90,6 +93,7 @@ public class MizushiDestructionWave implements SkillExecution {
             } else {
                 int posProcessed = 0;
                 int baseY = center.getBlockY();
+                int radiiAdvanced = 0;
 
                 while (posProcessed < MAX_POS_PER_TICK) {
                     // 현재 셸 소진 시 다음 반경으로
@@ -98,9 +102,12 @@ public class MizushiDestructionWave implements SkillExecution {
                             waveDone = true;
                             break;
                         }
+                        // 틱당 최대 반경 증가량 제한
+                        if (radiiAdvanced >= MAX_RADIUS_PER_TICK) break;
                         currentShell = DomainBlockBuilder.getSphereOffsets(currentRadius);
                         shellIndex   = 0;
                         currentRadius++;
+                        radiiAdvanced++;
                     }
 
                     while (shellIndex < currentShell.size() && posProcessed < MAX_POS_PER_TICK) {
@@ -121,7 +128,7 @@ public class MizushiDestructionWave implements SkillExecution {
                         float h = block.getType().getHardness();
                         if (h < 0) continue;                  // 베드락 등 파괴불가 스킵
                         if(block.isLiquid()){
-                            int maxDelay = 7;
+                            int maxDelay = 5;
                             int delay    = (int)(Math.random() * (maxDelay + 1));
                             int target   = tickCount + delay;
                             scheduledMap.computeIfAbsent(target, k -> new ArrayDeque<>())
