@@ -45,6 +45,9 @@ public class MizushiDestructionWave implements SkillExecution {
      */
     private static final float HARDNESS_DELAY_SCALE = 40.0f;
 
+    /** 블럭 파괴 시작 고정 딜레이 (틱). 판별은 즉시, 파괴는 2초 뒤. */
+    private static final int START_DELAY_TICKS = 40;
+
     private static final Set<Material> LIQUID_MATERIALS = EnumSet.of(
         Material.WATER, Material.LAVA, Material.BUBBLE_COLUMN
     );
@@ -57,6 +60,9 @@ public class MizushiDestructionWave implements SkillExecution {
     private int          shellIndex    = 0;
     private List<int[]>  currentShell  = null;
     private int          tickCount     = 0;
+
+    /** 최근 START_DELAY_TICKS 틱간의 currentRadius 이력 (오래된 순). 파괴 반경 계산용. */
+    private final ArrayDeque<Integer> radiusHistory = new ArrayDeque<>();
 
     /** targetTick → 파괴 대기 블럭 좌표 배열 */
     private final Map<Integer, ArrayDeque<int[]>> scheduledMap = new HashMap<>();
@@ -75,7 +81,16 @@ public class MizushiDestructionWave implements SkillExecution {
         this.onground  = onground;
     }
 
+    /** scan wave 전면 반경. 나중에 시전 postprocessing 충전 효과에 사용. */
     public int getCurrentRadius() { return currentRadius; }
+
+    /**
+     * 실제 파괴가 도달한 반경 (START_DELAY_TICKS 틱 전 scan 반경).
+     * 클라이언트 SYNC 패킷 전송에 사용.
+     */
+    public int getDestructionRadius() {
+        return radiusHistory.isEmpty() ? 0 : radiusHistory.peekFirst();
+    }
 
     public void stop() {
         stopped  = true;
@@ -172,7 +187,7 @@ public class MizushiDestructionWave implements SkillExecution {
 
                         // 액체 처리: 짧은 딜레이로 제거
                         if (LIQUID_MATERIALS.contains(mat)) {
-                            int delay  = (int)(Math.random() * 6);
+                            int delay  = START_DELAY_TICKS + (int)(Math.random() * 6);
                             int target = tickCount + delay;
                             scheduledMap.computeIfAbsent(target, k -> new ArrayDeque<>())
                                         .add(new int[]{bx, by, bz});
@@ -182,9 +197,9 @@ public class MizushiDestructionWave implements SkillExecution {
                         // 매우 단단한 블록 (경도 25 이상): 10% 확률로 건너뜀
                         if (hardness >= 25 && Math.random() < 0.1) continue;
 
-                        int maxDelay = JITTER + (int)(hardness * HARDNESS_DELAY_SCALE);
-                        int delay    = (int)(Math.random() * (maxDelay + 1));
-                        int target   = tickCount + delay;
+                        int jitterMax = JITTER + (int)(hardness * HARDNESS_DELAY_SCALE);
+                        int delay     = START_DELAY_TICKS + (int)(Math.random() * (jitterMax + 1));
+                        int target    = tickCount + delay;
                         scheduledMap.computeIfAbsent(target, k -> new ArrayDeque<>())
                                     .add(new int[]{bx, by, bz});
                     }
@@ -195,6 +210,10 @@ public class MizushiDestructionWave implements SkillExecution {
         // ── 이번 틱 만료 항목 → overdue 이동 ─────────────────────────────────
         ArrayDeque<int[]> ready = scheduledMap.remove(tickCount);
         if (ready != null) overdue.addAll(ready);
+
+        // ── 반경 이력 갱신: START_DELAY_TICKS 틱 전 scan 반경을 파괴 반경으로 노출 ──
+        radiusHistory.addLast(currentRadius);
+        if (radiusHistory.size() > START_DELAY_TICKS) radiusHistory.pollFirst();
     }
 
     @Override

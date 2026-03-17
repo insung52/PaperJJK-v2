@@ -127,11 +127,21 @@ public class JData {
     }
 
     /**
-     * 플레이어 접속 시 호출 — pending 데이터를 꺼내고 맵에서 제거.
+     * 플레이어 접속 시 호출 — 저장된 데이터 반환.
      * null 반환 시 신규 플레이어.
+     *
+     * 서버 시작 시 preload된 pendingData 우선 사용.
+     * 같은 세션에서 재접속 시(pendingData 소진 후)에는 yml에서 직접 로드.
      */
     public static PlayerSaveData consumePending(UUID uuid) {
-        return pendingData.remove(uuid);
+        PlayerSaveData pending = pendingData.remove(uuid);
+        if (pending != null) return pending;
+        // 재접속 케이스: pendingData에 없지만 yml에 저장된 데이터가 있을 수 있음
+        String uuidStr = uuid.toString();
+        if (dataConfig.contains("players." + uuidStr)) {
+            return loadPlayerData(uuidStr);
+        }
+        return null;
     }
 
     // ── 저장 ──────────────────────────────────────────────────────────────
