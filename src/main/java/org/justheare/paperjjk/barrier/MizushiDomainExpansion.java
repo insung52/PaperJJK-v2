@@ -4,6 +4,8 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.entity.LivingEntity;
+import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.innate.MizushiInnateTerritory;
@@ -45,6 +47,13 @@ public class MizushiDomainExpansion extends DomainExpansion {
 
     /** 결없영 활성 중 새로 생기는 블럭을 파괴하는 suppressor (isOpen=true 시에만 사용) */
     private MizushiBlockSuppressor blockSuppressor = null;
+
+    /** 영역이 실제로 전개된 고정 중심 좌표 (ACTIVE 진입 시 캡처, 이후 불변). */
+    private Location domainCenter = null;
+
+    /** fuga 범위 판정에 사용할 고정 중심. ACTIVE 이전엔 null. */
+    public Location getDomainCenter() { return domainCenter; }
+
 
     public MizushiDomainExpansion(JEntity caster, InnateTerritory territory, boolean open, int range) {
         super(caster, territory, range, open, BARRIER_LEVEL);
@@ -91,24 +100,26 @@ public class MizushiDomainExpansion extends DomainExpansion {
             ++syncTickCounter;
             if (syncTickCounter % 2 == 0) {
                 float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
+                Location dc = domainCenter != null ? domainCenter : caster.entity.getLocation();
                 JPacketSender.broadcastDomainVisualSync(
-                    caster.entity.getLocation(), caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
+                    dc, caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
             }
             // 100틱(5초)마다 전역 START 브로드캐스트 → 늦게 들어온 플레이어 복구
             if (++globalSyncCounter >= 100) {
                 globalSyncCounter = 0;
                 float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
+                Location dc = domainCenter != null ? domainCenter : caster.entity.getLocation();
                 JPacketSender.broadcastDomainVisualStartGlobal(
                     caster.uuid, org.justheare.paperjjk.network.PacketIds.DomainType.MIZUSHI,
-                    caster.entity.getLocation(), waveRadius, true);
+                    dc, waveRadius, true);
             }
         }
 
         if (!(innateTerritory instanceof MizushiInnateTerritory mit)) return;
 
         if (isOpen) {
-            // 결없영 사운드 타이밍 (중심 위치 기준)
-            Location soundCenter = caster.entity.getLocation();
+            // 결없영 사운드 타이밍 (고정 중심 기준)
+            Location soundCenter = domainCenter != null ? domainCenter : caster.entity.getLocation();
             if (soundCenter.getWorld() != null) {
                 switch (activeTick++) {
                     case 0 -> {
@@ -132,22 +143,29 @@ public class MizushiDomainExpansion extends DomainExpansion {
             // 첫 ACTIVE 틱에 파괴 파도 시작 + 클라이언트에 START 패킷 전송
             if (destructionWave == null) {
                 Location center = caster.entity.getLocation();
+                domainCenter = center.clone(); // 고정 중심 저장
                 // isOpen=true는 onExpanding이 1틱 만에 끝나 START 브로드캐스트가 안 보내지므로 여기서 전송
+                // radius=0 → 클라이언트 충전 애니메이션 트리거
                 broadcastDomainVisualSync(center, 0f);
+                // 전체 반경도 즉시 SYNC → smoothRadius가 0에서 시작하지 않도록 (소규모 반경 효과 버그 방지)
+                JPacketSender.broadcastDomainVisualSync(
+                        center, caster.uuid, (float) openRange, DomainManager.BROADCAST_RANGE);
                 destructionWave = new MizushiDestructionWave(center, openRange, true);
                 WorkScheduler.getInstance().register(destructionWave);
                 blockSuppressor = new MizushiBlockSuppressor(center, openRange, MizushiDestructionWave.START_DELAY_TICKS);
                 WorkScheduler.getInstance().register(blockSuppressor);
             }
 
-            // 매 틱 범위 내 LivingEntity에 팔(Hachi) 필중
-            Location center = caster.entity.getLocation();
-            if (center.getWorld() != null) {
-                center.getWorld().getNearbyEntities(center, openRange, openRange, openRange)
-                        .stream()
-                        .filter(e -> e instanceof org.bukkit.entity.LivingEntity
-                                && !(e instanceof org.bukkit.entity.Player))
-                        .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+            // 매 틱 범위 내 LivingEntity에 팔(Hachi) 필중 (fuga 충전 중에는 중단)
+            if (!fugaCharging) {
+                Location center = domainCenter != null ? domainCenter : caster.entity.getLocation();
+                if (center.getWorld() != null) {
+                    center.getWorld().getNearbyEntities(center, openRange, openRange, openRange)
+                            .stream()
+                            .filter(e -> e instanceof org.bukkit.entity.LivingEntity
+                                    && !(e instanceof org.bukkit.entity.Player))
+                            .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+                }
             }
         } else {
             // 일반 영역전개: 포획된 바닐라 몹에게 팔(Hachi) 필중
@@ -162,7 +180,6 @@ public class MizushiDomainExpansion extends DomainExpansion {
     @Override
     protected void onClosing() {
         if (isOpen || builder == null) {
-            // 결없영: 파괴 파도 중단 후 즉시 DONE
             if (destructionWave != null) {
                 destructionWave.stop();
                 destructionWave = null;
@@ -191,6 +208,67 @@ public class MizushiDomainExpansion extends DomainExpansion {
     /** BlockBreak 이벤트에서 파손된 결계 블록의 색인 제거 */
     public void removeBarrierBlock(int bx, int by, int bz) {
         if (builder != null) builder.removeBarrierBlock(bx, by, bz);
+    }
+
+    // ── Fuga 폭발 처리 ────────────────────────────────────────────────────
+
+    /**
+     * fuga가 결없영 내부에 진입했을 때 호출.
+     *
+     * 처리 내용:
+     *  1. 반경 내 엔티티에 반경^2.4 에 비례한 데미지 (한 번만)
+     *  2. 클라이언트에 MIZUSHI_THERMOBARIC 패킷 브로드캐스트
+     *  3. 5초(100틱) 후 영역전개 자동 종료
+     *
+     * @param impactPos fuga 충돌 위치 (미사용, 향후 블럭 파괴 등 확장 가능)
+     */
+    public void triggerFugaExplosion(Location impactPos) {
+        if (domainPhase == DomainPhase.CLOSING || domainPhase == DomainPhase.DONE) return;
+
+        Location center = domainCenter != null ? domainCenter : caster.entity.getLocation();
+        float radius = (float) getRange();
+
+        // 1. 반경 내 엔티티 데미지 — radius^2.4 에 비례 (분진 부피에 비례)
+        double damage = Math.pow(radius, 2.4) * 5;
+        if (center.getWorld() != null) {
+            for (LivingEntity le : center.getWorld().getNearbyLivingEntities(center, radius)) {
+                if (le == caster.entity) continue;
+                var target = org.justheare.paperjjk.network.JEntityManager.instance != null
+                        ? org.justheare.paperjjk.network.JEntityManager.instance.get(le.getUniqueId())
+                        : null;
+                if (target != null) {
+                    target.receiveDamage(DamageInfo.domainSureHit(caster, damage, "mizushi_fuga_explosion"));
+                } else {
+                    le.damage(DamageInfo.outputToDamage(damage));
+                }
+            }
+        }
+
+        // 2. 클라이언트 열압력탄 효과 트리거
+        double broadcastRange = radius * 2.0 + 128;
+        JPacketSender.broadcastMizushiThermobaric(center, radius, broadcastRange);
+
+        // 3. 즉시 영역 종료 (postprocessing + 블럭 파괴 즉시 OFF)
+        collapse();
+    }
+
+    // ── 블럭 파괴 일시 중단 (fuga 충전 중) ───────────────────────────────────
+
+    /** fuga 충전 중 여부 — true이면 Hachi 필중 데미지 + 블럭 파괴 중단. */
+    private boolean fugaCharging = false;
+
+    /** fuga 충전 시작 시 블럭 파괴 파도 + 서프레서 + Hachi 필중을 일시 중단. */
+    public void pauseBlockDestruction() {
+        fugaCharging = true;
+        if (destructionWave  != null) destructionWave.pause();
+        if (blockSuppressor  != null) blockSuppressor.pause();
+    }
+
+    /** fuga 충전 종료(미스/만료) 시 블럭 파괴 파도 + 서프레서 + Hachi 필중을 재개. */
+    public void resumeBlockDestruction() {
+        fugaCharging = false;
+        if (destructionWave  != null) destructionWave.resume();
+        if (blockSuppressor  != null) blockSuppressor.resume();
     }
 
     // ── 패킷 브로드캐스트 ─────────────────────────────────────────────────

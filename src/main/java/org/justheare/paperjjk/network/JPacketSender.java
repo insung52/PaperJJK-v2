@@ -429,6 +429,38 @@ public class JPacketSender {
         }
     }
 
+    // ── MIZUSHI_FUGA_CHARGE (0x34) ────────────────────────────────────────
+    // S2C: [packetId(1)][action(1)]   action: START(0x01)=참격 억제, STOP(0x02)=복원
+
+    public static void broadcastMizushiFugaCharge(Location center, byte action, double range) {
+        if (center.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.MIZUSHI_FUGA_CHARGE);
+        out.writeByte(action);
+        byte[] data = out.toByteArray();
+        for (Player p : center.getWorld().getPlayers()) {
+            if (p.getLocation().distance(center) <= range) send(p, data);
+        }
+    }
+
+    // ── MIZUSHI_THERMOBARIC (0x35) ────────────────────────────────────────
+    // S2C: [packetId(1)][centerX(8)][centerY(8)][centerZ(8)][radius(4)]
+    // 결없영 fuga 폭발 → 열압력탄 시각 효과 트리거. 참격/분진 효과도 종료.
+
+    public static void broadcastMizushiThermobaric(Location center, float radius, double range) {
+        if (center.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.MIZUSHI_THERMOBARIC);
+        out.writeDouble(center.getX());
+        out.writeDouble(center.getY());
+        out.writeDouble(center.getZ());
+        out.writeFloat(radius);
+        byte[] data = out.toByteArray();
+        for (Player p : center.getWorld().getPlayers()) {
+            if (p.getLocation().distance(center) <= range) send(p, data);
+        }
+    }
+
     // ── KAI_SLASH (0x32) ──────────────────────────────────────────────────
     // S2C: [packetId(1)][hitX(4)][hitY(4)][hitZ(4)][axisX(4)][axisY(4)][axisZ(4)]
     // hitPos: 참격 중심 위치 (월드 좌표), slashAxis: 정규화된 참격 방향 벡터

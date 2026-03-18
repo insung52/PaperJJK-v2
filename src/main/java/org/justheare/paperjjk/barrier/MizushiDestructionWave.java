@@ -72,6 +72,12 @@ public class MizushiDestructionWave implements SkillExecution {
 
     private boolean waveDone = false;
     private boolean stopped  = false;
+    private boolean paused   = false;
+
+    /** 블럭 파괴 파도를 일시 중단한다 (fuga 충전 중). tick(), flushBlocks() 모두 무시됨. */
+    public void pause()  { paused = true; }
+    /** 블럭 파괴 파도를 재개한다. */
+    public void resume() { paused = false; }
 
     /**
      * Two-generation ChunkSnapshot 캐시.
@@ -127,6 +133,8 @@ public class MizushiDestructionWave implements SkillExecution {
     @Override
     public void tick() {
         tickCount++;
+
+        if (paused) return;
 
         // ── 파도 전진: MAX_POS_PER_TICK 위치 순회 ────────────────────────────
         if (!waveDone && !stopped) {
@@ -255,7 +263,7 @@ public class MizushiDestructionWave implements SkillExecution {
 
     @Override
     public int flushBlocks(int budget) {
-        if (overdue.isEmpty()) return 0;
+        if (paused || overdue.isEmpty()) return 0;
 
         World world = center.getWorld();
         if (world == null) return 0;

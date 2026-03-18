@@ -10,11 +10,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
+import org.justheare.paperjjk.barrier.DomainManager;
+import org.justheare.paperjjk.barrier.MizushiDomainExpansion;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.entity.JPlayer;
 import org.justheare.paperjjk.network.JEntityManager;
+import org.justheare.paperjjk.network.JPacketSender;
+import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.skill.ActiveSkill;
 
 import java.util.List;
@@ -39,6 +43,12 @@ public class MizushiFuga extends ActiveSkill {
     private static final double STEP_DIST         = 1.5;
 
     // ── 충전 추적 ─────────────────────────────────────────────────────────
+
+    /** fuga가 결없영에 명중해 열압력탄이 트리거되었으면 true. onEnd()에서 STOP 패킷 생략. */
+    private boolean thermobaricTriggered = false;
+
+    /** 충전 시작 시 참격 억제 + 블럭 파괴 중단을 이미 보냈으면 true (중복 방지). */
+    private boolean chargeSuppressApplied = false;
 
     /** 충전 중 누적 틱 (최소 충전 판정 + 게이지용) */
     private int chargeTick = 0;
@@ -67,6 +77,18 @@ public class MizushiFuga extends ActiveSkill {
         Player p = jp.player;
 
         chargeTick++;
+
+        // 충전 첫 틱: 참격 억제 + 블럭 파괴 중단
+        if (!chargeSuppressApplied) {
+            chargeSuppressApplied = true;
+            MizushiDomainExpansion openDomain = getCasterOpenDomain();
+            if (openDomain != null) {
+                JPacketSender.broadcastMizushiFugaCharge(p.getLocation(),
+                        PacketIds.MizushiFugaAction.START,
+                        DomainManager.BROADCAST_RANGE);
+                openDomain.pauseBlockDestruction();
+            }
+        }
         p.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 60, 1));
 
         Location eye = p.getEyeLocation();
@@ -139,6 +161,9 @@ public class MizushiFuga extends ActiveSkill {
         flightTick++;
         if (flightTick >= MAX_FLIGHT_TICKS) { end(); return; }
 
+        // 결없영 진입 체크 (비행 중 매 틱, 루프 밖에서 1회만 조회)
+        MizushiDomainExpansion openDomain = getCasterOpenDomain();
+
         for (int step = 0; step < STEPS_PER_TICK; step++) {
             projectileDir.add(new Vector(0, -0.009, 0));
             projectilePos.add(projectileDir);
@@ -146,6 +171,19 @@ public class MizushiFuga extends ActiveSkill {
             double power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0);
             p.getWorld().spawnParticle(Particle.FLAME, projectilePos,
                     (int)(power / 10.0 + 1), 1, 1, 1, 0, null, true);
+
+            // 결없영 범위 내 진입 즉시 폭발 (고정 중심 기준, 3블록 여유)
+            if (openDomain != null) {
+                Location domCenter = openDomain.getDomainCenter();
+                if (domCenter != null
+                        && domCenter.getWorld() == projectilePos.getWorld()
+                        && domCenter.distance(projectilePos) <= openDomain.getRange() + 3.0) {
+                    thermobaricTriggered = true;
+                    openDomain.triggerFugaExplosion(projectilePos);
+                    end();
+                    return;
+                }
+            }
 
             if (projectilePos.getBlock().isSolid()) {
                 hit(p);
@@ -163,6 +201,19 @@ public class MizushiFuga extends ActiveSkill {
     // ── 명중 처리 ─────────────────────────────────────────────────────────
 
     private void hit(Player casterPlayer) {
+        // 결없영 내부 명중 시 열압력탄 폭발 (서버 로직은 MizushiDomainExpansion.triggerFugaExplosion 에서 처리)
+        MizushiDomainExpansion openDomain = getCasterOpenDomain();
+        if (openDomain != null) {
+            Location domCenter = openDomain.getCaster().entity.getLocation();
+            double distToDomain = domCenter.distance(projectilePos);
+            if (distToDomain <= openDomain.getRange()) {
+                thermobaricTriggered = true;
+                openDomain.triggerFugaExplosion(projectilePos);
+                end();
+                return;
+            }
+        }
+
         double power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0);
         float explodeSize = (float)(power / 25.0 + 2);
 
@@ -207,6 +258,35 @@ public class MizushiFuga extends ActiveSkill {
         } else {
             living.damage(DamageInfo.outputToDamage(output * 100));
         }
+    }
+
+    @Override
+    protected void onEnd() {
+        // 열압력탄이 트리거되지 않았다면 참격 복원 + 블럭 파괴 재개 (fuga 미스/만료)
+        if (!thermobaricTriggered) {
+            MizushiDomainExpansion openDomain = getCasterOpenDomain();
+            if (openDomain != null) {
+                openDomain.resumeBlockDestruction();
+                if (caster instanceof JPlayer jp) {
+                    JPacketSender.broadcastMizushiFugaCharge(jp.player.getLocation(),
+                            PacketIds.MizushiFugaAction.STOP,
+                            DomainManager.BROADCAST_RANGE);
+                }
+            }
+        }
+    }
+
+    /** 시전자의 활성 결없영(isOpen=true) MizushiDomainExpansion 을 반환. 없으면 null. */
+    private MizushiDomainExpansion getCasterOpenDomain() {
+        if (DomainManager.instance == null) return null;
+        for (var d : DomainManager.instance.getActiveDomains()) {
+            if (d instanceof MizushiDomainExpansion mde
+                    && mde.isOpen()
+                    && mde.getCaster() == caster) {
+                return mde;
+            }
+        }
+        return null;
     }
 
     // ── HUD ──────────────────────────────────────────────────────────────

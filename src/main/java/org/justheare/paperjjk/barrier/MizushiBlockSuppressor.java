@@ -50,6 +50,12 @@ public class MizushiBlockSuppressor implements SkillExecution, Listener {
 
     private int tickCount = 0;
     private boolean stopped = false;
+    private boolean paused  = false;
+
+    /** 랜덤 샘플링 및 블럭 파괴를 일시 중단한다 (fuga 충전 중). */
+    public void pause()  { paused = true; }
+    /** 일시 중단을 해제한다. */
+    public void resume() { paused = false; }
 
     private final Random rng = new Random();
 
@@ -86,7 +92,7 @@ public class MizushiBlockSuppressor implements SkillExecution, Listener {
     // ── 내부: 블럭 큐 등록 ────────────────────────────────────────────────
 
     private void tryQueue(Block block) {
-        if (stopped) return;
+        if (stopped || paused) return;
         if (!block.getWorld().equals(center.getWorld())) return;
 
         int bx = block.getX(), by = block.getY(), bz = block.getZ();
@@ -140,7 +146,7 @@ public class MizushiBlockSuppressor implements SkillExecution, Listener {
 
     @Override
     public void tick() {
-        if (stopped) return;
+        if (stopped || paused) return;
         tickCount++;
 
         // ── 랜덤 샘플링: plugin-placed 블럭(옵시디언 등) 처리 ────────────
@@ -176,7 +182,7 @@ public class MizushiBlockSuppressor implements SkillExecution, Listener {
 
     @Override
     public int flushBlocks(int budget) {
-        if (overdue.isEmpty()) return 0;
+        if (paused || overdue.isEmpty()) return 0;
 
         World world = center.getWorld();
         if (world == null) return 0;

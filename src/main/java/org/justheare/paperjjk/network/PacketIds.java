@@ -56,6 +56,12 @@ public class PacketIds {
     // HACHI_SLASH Format: [packetId(1)][hitX(4)][hitY(4)][hitZ(4)]
     public static final byte HACHI_SLASH        = 0x33; // 팔(Hachi) 격자 참격 화면 효과
 
+    // ── Server → Client: Mizushi 결없영 fuga / thermobaric ────────────────
+    // MIZUSHI_FUGA_CHARGE Format: [packetId(1)][action(1)]
+    public static final byte MIZUSHI_FUGA_CHARGE = 0x34; // Fuga 충전 시작/종료 (참격 억제/복원)
+    // MIZUSHI_THERMOBARIC Format: [packetId(1)][centerX(8)][centerY(8)][centerZ(8)][radius(4)]
+    public static final byte MIZUSHI_THERMOBARIC = 0x35; // 열압력탄 폭발 트리거
+
     // ── 양방향 ─────────────────────────────────────────────────────────────
     public static final byte HANDSHAKE = 0x20;
 
@@ -98,6 +104,11 @@ public class PacketIds {
         public static final byte START = 0x01;
         public static final byte SYNC  = 0x02;
         public static final byte END   = 0x03;
+    }
+
+    public static class MizushiFugaAction {
+        public static final byte START = 0x01; // 충전 시작 — 참격 억제
+        public static final byte STOP  = 0x02; // 충전 종료 — 참격 복원 (미스/만료)
     }
 
     public static class InfinityMurasakiAction {
