@@ -31,7 +31,7 @@ import java.util.*;
 public class MizushiDestructionWave implements SkillExecution {
 
     /** 틱당 순회할 최대 위치 수 (위치 검색 비용 제한, 구 표면적 한도) */
-    private static final int MAX_POS_PER_TICK = 200_000;
+    private static final int MAX_POS_PER_TICK = 220_000;
 
     /** 틱당 최대 반경 증가량 (블록). 시각적 확장 속도를 제어한다. */
     public static final int MAX_RADIUS_PER_TICK = 3;
@@ -73,6 +73,25 @@ public class MizushiDestructionWave implements SkillExecution {
     private boolean waveDone = false;
     private boolean stopped  = false;
 
+    /**
+     * Two-generation ChunkSnapshot 캐시.
+     *
+     * snapCurrent: 이번 에포크(SNAP_EPOCH_TICKS 틱) 내 접근된 스냅샷.
+     * snapPrev:    이전 에포크의 스냅샷 — 이번 에포크에 다시 접근되면 snapCurrent로 승격.
+     *
+     * 에포크 종료 시: snapPrev = snapCurrent, snapCurrent = 새 맵.
+     * 한 에포크 이상 접근 없는 청크는 snapPrev에서 자동 소멸 → 최대 생존 1~2 에포크.
+     *
+     * 왜 고정 TTL 대신 2-gen 방식을 쓰나:
+     *   r=200에서 한 쉘(~502K 포지션)을 처리하는 데 ~5틱이 걸리므로,
+     *   같은 청크를 인접 쉘에서 다시 쓰기까지의 간격이 최대 ~8틱에 달한다.
+     *   EPOCH=8로 설정하면 접근 간격이 8틱 이하인 청크는 항상 캐시 히트하고,
+     *   파도가 완전히 지나간 청크는 다음 에포크 교체 시 자동 폐기된다.
+     */
+    private Map<Long, ChunkSnapshot> snapCurrent = new HashMap<>();
+    private Map<Long, ChunkSnapshot> snapPrev    = new HashMap<>();
+    private static final int SNAP_EPOCH_TICKS = 8;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     public MizushiDestructionWave(Location center, int maxRadius, boolean onground) {
@@ -98,6 +117,8 @@ public class MizushiDestructionWave implements SkillExecution {
         waveDone = true;
         scheduledMap.clear();
         overdue.clear();
+        snapCurrent.clear();
+        snapPrev.clear();
         currentShell = null;
     }
 
@@ -115,6 +136,12 @@ public class MizushiDestructionWave implements SkillExecution {
             } else {
                 int minHeight = world.getMinHeight();
                 int maxHeight = world.getMaxHeight();
+
+                // 에포크 교체: snapPrev 폐기 → snapCurrent이 snapPrev로, 새 빈 맵이 snapCurrent로
+                if (tickCount % SNAP_EPOCH_TICKS == 0) {
+                    snapPrev    = snapCurrent;
+                    snapCurrent = new HashMap<>();
+                }
 
                 int posProcessed  = 0;
                 int radiiAdvanced = 0;
@@ -160,17 +187,26 @@ public class MizushiDestructionWave implements SkillExecution {
                     }
                 }
 
-                // ── 청크 그루핑 처리: 청크당 1회 ChunkSnapshot 생성 ──────────
+                // ── 청크 그루핑 처리: 크로스-틱 캐시에서 스냅샷 조회, 없으면 새로 생성 ──
+                int sectionMinY = world.getMinHeight() >> 4;
                 for (Map.Entry<Long, List<int[]>> entry : chunkGroups.entrySet()) {
                     long key = entry.getKey();
                     int cx = (int)(key >> 32);
                     int cz = (int)(key);
 
-                    if (!world.isChunkLoaded(cx, cz)) continue;
-                    Chunk chunk = world.getChunkAt(cx, cz);
-                    // false, false, false = 높이맵/생물군계/그림자 불필요
-                    ChunkSnapshot snapshot = chunk.getChunkSnapshot(false, false, false);
-                    int sectionMinY = world.getMinHeight() >> 4;
+                    // 2-gen 캐시 조회: hot → warm 순, warm 히트 시 hot으로 승격
+                    ChunkSnapshot snapshot = snapCurrent.get(key);
+                    if (snapshot == null) {
+                        snapshot = snapPrev.get(key);
+                        if (snapshot != null) {
+                            snapCurrent.put(key, snapshot); // warm → hot 승격
+                        } else {
+                            if (!world.isChunkLoaded(cx, cz)) continue;
+                            // false, false, false = 높이맵/생물군계/그림자 불필요
+                            snapshot = world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false);
+                            snapCurrent.put(key, snapshot);
+                        }
+                    }
 
                     for (int[] pos : entry.getValue()) {
                         int bx = pos[0], by = pos[1], bz = pos[2];

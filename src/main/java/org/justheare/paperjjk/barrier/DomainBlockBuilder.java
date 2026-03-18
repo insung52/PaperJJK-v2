@@ -18,8 +18,8 @@ import java.util.logging.Logger;
  */
 public class DomainBlockBuilder {
 
-    /** 반경별 구 표면 오프셋 캐시 (서버 전역 공유) */
-    private static final Map<Integer, List<int[]>> SPHERE_CACHE = new HashMap<>();
+    /** 반경별 구 표면 오프셋 캐시 (서버 전역 공유, 비동기 워밍업 스레드와 공유하므로 ConcurrentHashMap) */
+    private static final Map<Integer, List<int[]>> SPHERE_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** 원본 블록 스냅샷 (복원용) */
     private record BlockSnapshot(int x, int y, int z, String worldName,
@@ -44,6 +44,22 @@ public class DomainBlockBuilder {
     private boolean buildStarted = false;
 
     // ── 구 표면 오프셋 캐시 ────────────────────────────────────────────────
+
+    /**
+     * 서버 시작 시 비동기 백그라운드 스레드에서 0~maxRadius 범위의 구 오프셋을 미리 계산.
+     * 메인 스레드에서 처음 전개할 때 발생하는 수백ms 렉을 방지한다.
+     */
+    public static void warmupAsync(int maxRadius) {
+        Thread t = new Thread(() -> {
+            for (int r = 0; r <= maxRadius; r++) {
+                getSphereOffsets(r);
+            }
+            java.util.logging.Logger.getLogger("PaperJJK")
+                .info("[DomainBlockBuilder] Sphere offset warmup complete (r=0~" + maxRadius + ")");
+        }, "PaperJJK-SphereWarmup");
+        t.setDaemon(true);
+        t.start();
+    }
 
     /**
      * 반경 radius의 구 표면을 이루는 블록 오프셋 목록을 반환.

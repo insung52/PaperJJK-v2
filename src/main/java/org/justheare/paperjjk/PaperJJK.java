@@ -1,6 +1,7 @@
 package org.justheare.paperjjk;
 
 import org.bukkit.plugin.java.JavaPlugin;
+import org.justheare.paperjjk.barrier.DomainBlockBuilder;
 import org.justheare.paperjjk.barrier.DomainManager;
 import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.JPacketHandler;
@@ -42,6 +43,9 @@ public class PaperJJK extends JavaPlugin {
                 this, JPacketHandler.CHANNEL, new JPacketHandler(this));
         getServer().getMessenger().registerOutgoingPluginChannel(
                 this, JPacketHandler.CHANNEL);
+
+        // 구 오프셋 워밍업: 첫 결없영 전개 때 메인 스레드 렉 방지 (r=0~200 비동기 선계산)
+        DomainBlockBuilder.warmupAsync(200);
 
         getLogger().info("PaperJJK v2 enabled.");
     }
