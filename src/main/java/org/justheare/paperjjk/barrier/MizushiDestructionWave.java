@@ -31,10 +31,10 @@ import java.util.*;
 public class MizushiDestructionWave implements SkillExecution {
 
     /** 틱당 순회할 최대 위치 수 (위치 검색 비용 제한, 구 표면적 한도) */
-    private static final int MAX_POS_PER_TICK = 100_000;
+    private static final int MAX_POS_PER_TICK = 200_000;
 
     /** 틱당 최대 반경 증가량 (블록). 시각적 확장 속도를 제어한다. */
-    public static final int MAX_RADIUS_PER_TICK = 4;
+    public static final int MAX_RADIUS_PER_TICK = 3;
 
     /** 블럭 파괴 기본 랜덤 딜레이 (0~JITTER 틱) */
     private static final int JITTER = 20;
@@ -46,7 +46,7 @@ public class MizushiDestructionWave implements SkillExecution {
     private static final float HARDNESS_DELAY_SCALE = 40.0f;
 
     /** 블럭 파괴 시작 고정 딜레이 (틱). 판별은 즉시, 파괴는 2초 뒤. */
-    private static final int START_DELAY_TICKS = 40;
+    static final int START_DELAY_TICKS = 40;
 
     private static final Set<Material> LIQUID_MATERIALS = EnumSet.of(
         Material.WATER, Material.LAVA, Material.BUBBLE_COLUMN

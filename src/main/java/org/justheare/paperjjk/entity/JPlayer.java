@@ -179,10 +179,13 @@ public class JPlayer extends JEntity {
         DomainManager.instance.register(activeDomain);
 
         // DOMAIN_VISUAL START 브로드캐스트
+        // 결없영(isOpen=true)은 0f로 전송 → 클라이언트가 충전 이펙트 시작, 확장 이펙트는 SYNC 수신 후 시작.
+        // 일반 영역(isOpen=false)은 고정 반경을 즉시 전송.
         Location center = player.getLocation();
         int domainType = getDomainType();
+        float initialVisualRadius = activeDomain.isOpen() ? 0f : (float) activeDomain.getRange();
         JPacketSender.broadcastDomainVisualStart(center, player.getUniqueId(),
-                domainType, center, (float) activeDomain.getRange(), activeDomain.isOpen(),
+                domainType, center, initialVisualRadius, activeDomain.isOpen(),
                 DomainManager.BROADCAST_RANGE);
 
         return true;

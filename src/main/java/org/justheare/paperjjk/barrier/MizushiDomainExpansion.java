@@ -35,9 +35,16 @@ public class MizushiDomainExpansion extends DomainExpansion {
     private final int openRange;
 
     private int syncTickCounter = 0;
+    /** 결없영 ACTIVE 진입 후 틱 카운터 (사운드 타이밍용) */
+    private int activeTick = 0;
+    /** 주기적 전역 START 브로드캐스트 카운터 (100틱 = 5초마다) */
+    private int globalSyncCounter = 0;
 
     /** 결없영 블럭 파괴 파도 (isOpen=true 시에만 사용) */
     private MizushiDestructionWave destructionWave = null;
+
+    /** 결없영 활성 중 새로 생기는 블럭을 파괴하는 suppressor (isOpen=true 시에만 사용) */
+    private MizushiBlockSuppressor blockSuppressor = null;
 
     public MizushiDomainExpansion(JEntity caster, InnateTerritory territory, boolean open, int range) {
         super(caster, territory, range, open, BARRIER_LEVEL);
@@ -79,16 +86,49 @@ public class MizushiDomainExpansion extends DomainExpansion {
         innateTerritory.onActiveTick();
 
         // 결없영(isOpen): onExpanding이 1틱만 돌고 즉시 ACTIVE로 전환되므로
-        // 여기서 5틱마다 sync 브로드캐스트 (파괴 파도의 현재 반경 전송)
-        if (isOpen && ++syncTickCounter % 2 == 0) {
-            float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
-            JPacketSender.broadcastDomainVisualSync(
-                caster.entity.getLocation(), caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
+        // 여기서 2틱마다 sync 브로드캐스트 (파괴 파도의 현재 반경 전송)
+        if (isOpen) {
+            ++syncTickCounter;
+            if (syncTickCounter % 2 == 0) {
+                float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
+                JPacketSender.broadcastDomainVisualSync(
+                    caster.entity.getLocation(), caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
+            }
+            // 100틱(5초)마다 전역 START 브로드캐스트 → 늦게 들어온 플레이어 복구
+            if (++globalSyncCounter >= 100) {
+                globalSyncCounter = 0;
+                float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
+                JPacketSender.broadcastDomainVisualStartGlobal(
+                    caster.uuid, org.justheare.paperjjk.network.PacketIds.DomainType.MIZUSHI,
+                    caster.entity.getLocation(), waveRadius, true);
+            }
         }
 
         if (!(innateTerritory instanceof MizushiInnateTerritory mit)) return;
 
         if (isOpen) {
+            // 결없영 사운드 타이밍 (중심 위치 기준)
+            Location soundCenter = caster.entity.getLocation();
+            if (soundCenter.getWorld() != null) {
+                switch (activeTick++) {
+                    case 0 -> {
+                        // 시전 즉시
+                        soundCenter.getWorld().playSound(soundCenter, Sound.ENTITY_ELDER_GUARDIAN_DEATH,    SoundCategory.MASTER, 5f, 0.5f);
+                        soundCenter.getWorld().playSound(soundCenter, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, SoundCategory.MASTER, 3f, 0.5f);
+                    }
+                    case 20 -> {
+                        // 딜레이 중간
+                        soundCenter.getWorld().playSound(soundCenter, Sound.ENTITY_BREEZE_SLIDE, SoundCategory.MASTER, 5f, 0.5f);
+                    }
+                    case 40 -> {
+                        // 반경 확장 시작
+                        soundCenter.getWorld().playSound(soundCenter, Sound.ENTITY_EVOKER_PREPARE_ATTACK,  SoundCategory.MASTER, 10f, 0.5f);
+                        soundCenter.getWorld().playSound(soundCenter, Sound.ENTITY_EVOKER_PREPARE_SUMMON,  SoundCategory.MASTER, 10f, 0.5f);
+                        soundCenter.getWorld().playSound(soundCenter, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.MASTER, 5f,  0.5f);
+                    }
+                }
+            }
+
             // 첫 ACTIVE 틱에 파괴 파도 시작 + 클라이언트에 START 패킷 전송
             if (destructionWave == null) {
                 Location center = caster.entity.getLocation();
@@ -96,6 +136,8 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 broadcastDomainVisualSync(center, 0f);
                 destructionWave = new MizushiDestructionWave(center, openRange, true);
                 WorkScheduler.getInstance().register(destructionWave);
+                blockSuppressor = new MizushiBlockSuppressor(center, openRange, MizushiDestructionWave.START_DELAY_TICKS);
+                WorkScheduler.getInstance().register(blockSuppressor);
             }
 
             // 매 틱 범위 내 LivingEntity에 팔(Hachi) 필중
@@ -125,14 +167,18 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 destructionWave.stop();
                 destructionWave = null;
             }
+            if (blockSuppressor != null) {
+                blockSuppressor.stop();
+                blockSuppressor = null;
+            }
             domainPhase = DomainPhase.DONE;
-            broadcastDomainVisualEnd(caster.entity.getLocation());
+            broadcastDomainVisualEndGlobal();
             return;
         }
         boolean done = builder.restoreTick(BLOCKS_PER_TICK);
         if (done) {
             domainPhase = DomainPhase.DONE;
-            broadcastDomainVisualEnd(caster.entity.getLocation());
+            broadcastDomainVisualEndGlobal();
         }
     }
 
@@ -168,5 +214,10 @@ public class MizushiDomainExpansion extends DomainExpansion {
     private void broadcastDomainVisualEnd(Location center) {
         if (center.getWorld() == null) return;
         JPacketSender.broadcastDomainVisualEnd(center, caster.uuid, DomainManager.BROADCAST_RANGE);
+    }
+
+    /** 월드/거리 제한 없이 모든 플레이어에게 END 전송 (월드 전환 버그 방지). */
+    private void broadcastDomainVisualEndGlobal() {
+        JPacketSender.broadcastDomainVisualEndGlobal(caster.uuid);
     }
 }

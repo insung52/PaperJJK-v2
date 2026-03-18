@@ -2,6 +2,7 @@ package org.justheare.paperjjk.network;
 
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
@@ -188,6 +189,35 @@ public class JPacketSender {
                 sendDomainVisualEnd(p, casterUuid);
             }
         }
+    }
+
+    /** 월드/거리 제한 없이 전체 접속 플레이어에게 END 패킷 전송. 월드 전환 버그 방지. */
+    public static void broadcastDomainVisualEndGlobal(java.util.UUID casterUuid) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.DOMAIN_VISUAL);
+        out.writeByte(PacketIds.DomainVisualAction.END);
+        out.writeLong(casterUuid.getMostSignificantBits());
+        out.writeLong(casterUuid.getLeastSignificantBits());
+        byte[] data = out.toByteArray();
+        for (Player p : Bukkit.getOnlinePlayers()) send(p, data);
+    }
+
+    /** 월드/거리 제한 없이 전체 접속 플레이어에게 START 패킷 전송. 늦게 들어온 플레이어 복구용. */
+    public static void broadcastDomainVisualStartGlobal(java.util.UUID casterUuid,
+            int domainType, Location domainCenter, float currentRadius, boolean isOpen) {
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.DOMAIN_VISUAL);
+        out.writeByte(PacketIds.DomainVisualAction.START);
+        out.writeLong(casterUuid.getMostSignificantBits());
+        out.writeLong(casterUuid.getLeastSignificantBits());
+        out.writeInt(domainType);
+        out.writeDouble(domainCenter.getX());
+        out.writeDouble(domainCenter.getY());
+        out.writeDouble(domainCenter.getZ());
+        out.writeFloat(currentRadius);
+        out.writeBoolean(isOpen);
+        byte[] data = out.toByteArray();
+        for (Player p : Bukkit.getOnlinePlayers()) send(p, data);
     }
 
     // SYNC payload: [casterUUID(16)][radius(4f)]
