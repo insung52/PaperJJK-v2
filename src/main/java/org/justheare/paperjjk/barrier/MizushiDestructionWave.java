@@ -89,7 +89,8 @@ public class MizushiDestructionWave implements SkillExecution {
      * 클라이언트 SYNC 패킷 전송에 사용.
      */
     public int getDestructionRadius() {
-        return radiusHistory.isEmpty() ? 0 : radiusHistory.peekFirst();
+        if (radiusHistory.size() < START_DELAY_TICKS) return 0;
+        return radiusHistory.peekFirst();
     }
 
     public void stop() {
