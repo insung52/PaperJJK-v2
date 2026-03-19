@@ -11,12 +11,18 @@ import org.justheare.paperjjk.entity.JPlayer;
 import org.justheare.paperjjk.entity.BodyReinforcement;
 import org.justheare.paperjjk.skill.SkillKey;
 import org.justheare.paperjjk.skill.SkillSlot;
+import java.util.logging.Logger;
 
 /**
  * 서버 → 클라이언트 패킷 전송 유틸리티.
  * 모든 메서드는 static. 채널 = JPacketHandler.CHANNEL.
  */
 public class JPacketSender {
+
+    /** true 로 설정하면 DOMAIN_VISUAL 패킷 전송마다 서버 로그에 출력. */
+    public static boolean DOMAIN_DEBUG = false;
+
+    private static final Logger LOG = Logger.getLogger("PaperJJK");
 
     private JPacketSender() {}
 
@@ -160,6 +166,9 @@ public class JPacketSender {
         out.writeDouble(center.getZ());
         out.writeFloat(maxRadius);
         out.writeBoolean(isOpen);
+        if (DOMAIN_DEBUG) LOG.info("[DomainPkt] START → " + player.getName()
+            + " | type=" + domainType + " | radius=" + maxRadius + " | isOpen=" + isOpen
+            + " | center=(" + String.format("%.1f,%.1f,%.1f", center.getX(), center.getY(), center.getZ()) + ")");
         send(player, out.toByteArray());
     }
 
@@ -169,6 +178,7 @@ public class JPacketSender {
         out.writeByte(PacketIds.DomainVisualAction.END);
         out.writeLong(casterUuid.getMostSignificantBits());
         out.writeLong(casterUuid.getLeastSignificantBits());
+        if (DOMAIN_DEBUG) LOG.info("[DomainPkt] END → " + player.getName() + " | uuid=" + casterUuid);
         send(player, out.toByteArray());
     }
 
@@ -199,6 +209,7 @@ public class JPacketSender {
         out.writeLong(casterUuid.getMostSignificantBits());
         out.writeLong(casterUuid.getLeastSignificantBits());
         byte[] data = out.toByteArray();
+        if (DOMAIN_DEBUG) LOG.info("[DomainPkt] END(global) → " + Bukkit.getOnlinePlayers().size() + " players | uuid=" + casterUuid);
         for (Player p : Bukkit.getOnlinePlayers()) send(p, data);
     }
 
@@ -217,25 +228,36 @@ public class JPacketSender {
         out.writeFloat(currentRadius);
         out.writeBoolean(isOpen);
         byte[] data = out.toByteArray();
+        if (DOMAIN_DEBUG) LOG.info("[DomainPkt] START(global) → " + Bukkit.getOnlinePlayers().size() + " players | radius=" + currentRadius);
         for (Player p : Bukkit.getOnlinePlayers()) send(p, data);
     }
 
-    // SYNC payload: [casterUUID(16)][radius(4f)]
-    public static void sendDomainVisualSync(Player player, java.util.UUID casterUuid, float radius) {
+    // SYNC payload: [casterUUID(16)][radius(4f)][domainType(4)][cx(8)][cy(8)][cz(8)][isOpen(1)]
+    // center 포함 → START를 놓친 플레이어도 SYNC만으로 도메인 복구 가능
+    public static void sendDomainVisualSync(Player player, java.util.UUID casterUuid, float radius,
+            int domainType, Location center, boolean isOpen) {
         ByteArrayDataOutput out = ByteStreams.newDataOutput();
         out.writeByte(PacketIds.DOMAIN_VISUAL);
         out.writeByte(PacketIds.DomainVisualAction.SYNC);
         out.writeLong(casterUuid.getMostSignificantBits());
         out.writeLong(casterUuid.getLeastSignificantBits());
         out.writeFloat(radius);
+        out.writeInt(domainType);
+        out.writeDouble(center.getX());
+        out.writeDouble(center.getY());
+        out.writeDouble(center.getZ());
+        out.writeBoolean(isOpen);
+        if (DOMAIN_DEBUG) LOG.info("[DomainPkt] SYNC → " + player.getName()
+            + " | radius=" + radius + " | type=" + domainType + " | isOpen=" + isOpen);
         send(player, out.toByteArray());
     }
 
-    public static void broadcastDomainVisualSync(Location center, java.util.UUID casterUuid, float radius, double range) {
+    public static void broadcastDomainVisualSync(Location center, java.util.UUID casterUuid, float radius,
+            double range, int domainType, boolean isOpen) {
         if (center.getWorld() == null) return;
         for (Player p : center.getWorld().getPlayers()) {
             if (p.getLocation().distance(center) <= range) {
-                sendDomainVisualSync(p, casterUuid, radius);
+                sendDomainVisualSync(p, casterUuid, radius, domainType, center, isOpen);
             }
         }
     }

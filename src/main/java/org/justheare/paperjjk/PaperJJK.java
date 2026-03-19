@@ -44,8 +44,8 @@ public class PaperJJK extends JavaPlugin {
         getServer().getMessenger().registerOutgoingPluginChannel(
                 this, JPacketHandler.CHANNEL);
 
-        // 구 오프셋 워밍업: 첫 결없영 전개 때 메인 스레드 렉 방지 (r=0~200 비동기 선계산)
-        DomainBlockBuilder.warmupAsync(200);
+        // 구 오프셋 워밍업: 첫 결없영 전개 때 메인 스레드 렉 방지 (r=0~201 비동기 선계산, +1은 fuga 폭발 외벽용)
+        DomainBlockBuilder.warmupAsync(201);
 
         getLogger().info("PaperJJK v2 enabled.");
     }

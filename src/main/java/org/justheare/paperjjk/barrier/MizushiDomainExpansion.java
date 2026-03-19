@@ -12,6 +12,7 @@ import org.justheare.paperjjk.innate.MizushiInnateTerritory;
 import org.justheare.paperjjk.network.JPacketSender;
 import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.scheduler.WorkScheduler;
+import java.util.logging.Logger;
 
 /**
  * 복마어주자(Malevolent Shrine) 영역전개.
@@ -28,6 +29,8 @@ import org.justheare.paperjjk.scheduler.WorkScheduler;
  *   - 포획 없이 현실 전개 (DomainExpansion.captureAllEntitiesInRange 에서 isOpen 체크로 제외됨)
  */
 public class MizushiDomainExpansion extends DomainExpansion {
+
+    private static final Logger LOG = Logger.getLogger("PaperJJK");
 
     private static final double   BARRIER_LEVEL   = 10.0;
     private static final Material BARRIER_MAT     = Material.OBSIDIAN;
@@ -68,7 +71,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
         Location center = caster.entity.getLocation();
 
         if (++syncTickCounter % 5 == 0) {
-            broadcastDomainVisualSync(center);
+            broadcastDomainVisualStart(center);
         }
 
         if (isOpen) {
@@ -82,7 +85,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
             if (done) {
                 domainPhase = DomainPhase.ACTIVE;
                 captureAllEntitiesInRange(); // JEntity + 일반 엔티티 모두 포획
-                broadcastDomainVisualActive(center);
+                broadcastDomainVisualStart(center);
 
                 center.getWorld().playSound(center, Sound.BLOCK_BEACON_ACTIVATE,
                         SoundCategory.MASTER, 3f, 0.5f);
@@ -101,17 +104,21 @@ public class MizushiDomainExpansion extends DomainExpansion {
             if (syncTickCounter % 2 == 0) {
                 float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
                 Location dc = domainCenter != null ? domainCenter : caster.entity.getLocation();
+                if (JPacketSender.DOMAIN_DEBUG) LOG.info("[MizushiDomain] SYNC broadcast | tick=" + syncTickCounter
+                    + " | waveRadius=" + waveRadius + " | destructionWave=" + (destructionWave != null)
+                    + " | domainCenter=" + (domainCenter != null));
                 JPacketSender.broadcastDomainVisualSync(
-                    dc, caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE);
+                    dc, caster.uuid, waveRadius, DomainManager.BROADCAST_RANGE,
+                    PacketIds.DomainType.MIZUSHI, true);
             }
-            // 100틱(5초)마다 전역 START 브로드캐스트 → 늦게 들어온 플레이어 복구
+            // 100틱(5초)마다 전역 START 브로드캐스트 → 늦게 들어온 플레이어 복구 (거리 무제한)
             if (++globalSyncCounter >= 100) {
                 globalSyncCounter = 0;
                 float waveRadius = destructionWave != null ? (float) destructionWave.getDestructionRadius() : 0f;
                 Location dc = domainCenter != null ? domainCenter : caster.entity.getLocation();
+                if (JPacketSender.DOMAIN_DEBUG) LOG.info("[MizushiDomain] START(global) broadcast | waveRadius=" + waveRadius);
                 JPacketSender.broadcastDomainVisualStartGlobal(
-                    caster.uuid, org.justheare.paperjjk.network.PacketIds.DomainType.MIZUSHI,
-                    dc, waveRadius, true);
+                    caster.uuid, PacketIds.DomainType.MIZUSHI, dc, waveRadius, true);
             }
         }
 
@@ -146,10 +153,10 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 domainCenter = center.clone(); // 고정 중심 저장
                 // isOpen=true는 onExpanding이 1틱 만에 끝나 START 브로드캐스트가 안 보내지므로 여기서 전송
                 // radius=0 → 클라이언트 충전 애니메이션 트리거
-                broadcastDomainVisualSync(center, 0f);
-                // 전체 반경도 즉시 SYNC → smoothRadius가 0에서 시작하지 않도록 (소규모 반경 효과 버그 방지)
-                JPacketSender.broadcastDomainVisualSync(
-                        center, caster.uuid, (float) openRange, DomainManager.BROADCAST_RANGE);
+                if (JPacketSender.DOMAIN_DEBUG) LOG.info("[MizushiDomain] 첫 ACTIVE 틱 → START(radius=0) 전송 | center="
+                    + String.format("(%.1f,%.1f,%.1f)", center.getX(), center.getY(), center.getZ())
+                    + " | openRange=" + openRange);
+                broadcastDomainVisualStart(center, 0f);
                 destructionWave = new MizushiDestructionWave(center, openRange, true);
                 WorkScheduler.getInstance().register(destructionWave);
                 blockSuppressor = new MizushiBlockSuppressor(center, openRange, MizushiDestructionWave.START_DELAY_TICKS);
@@ -248,7 +255,10 @@ public class MizushiDomainExpansion extends DomainExpansion {
         double broadcastRange = radius * 2.0 + 128;
         JPacketSender.broadcastMizushiThermobaric(center, radius, broadcastRange);
 
-        // 3. 즉시 영역 종료 (postprocessing + 블럭 파괴 즉시 OFF)
+        // 3. 경계(반경+1) 지상 블럭 폭발+화염 이펙트
+        WorkScheduler.getInstance().register(new MizushiSurfaceExplosion(center, (int) radius));
+
+        // 4. 즉시 영역 종료 (postprocessing + 블럭 파괴 즉시 OFF)
         collapse();
     }
 
@@ -273,20 +283,18 @@ public class MizushiDomainExpansion extends DomainExpansion {
 
     // ── 패킷 브로드캐스트 ─────────────────────────────────────────────────
 
-    private void broadcastDomainVisualSync(Location center) {
-        broadcastDomainVisualSync(center, (float) getRange());
+    /** 현재 반경(getRange())으로 START 패킷 브로드캐스트. */
+    private void broadcastDomainVisualStart(Location center) {
+        broadcastDomainVisualStart(center, (float) getRange());
     }
 
-    private void broadcastDomainVisualSync(Location center, float radius) {
+    /** 지정 반경으로 START 패킷 브로드캐스트 (DomainVisualAction.START 전송). */
+    private void broadcastDomainVisualStart(Location center, float radius) {
         if (center.getWorld() == null) return;
         JPacketSender.broadcastDomainVisualStart(center,
                 caster.uuid, PacketIds.DomainType.MIZUSHI,
                 center, radius, isOpen,
                 DomainManager.BROADCAST_RANGE);
-    }
-
-    private void broadcastDomainVisualActive(Location center) {
-        broadcastDomainVisualSync(center);
     }
 
     private void broadcastDomainVisualEnd(Location center) {

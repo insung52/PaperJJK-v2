@@ -111,7 +111,8 @@ public class MizushiDestructionWave implements SkillExecution {
 
     /**
      * 실제 파괴가 도달한 반경 (START_DELAY_TICKS 틱 전 scan 반경).
-     * 클라이언트 SYNC 패킷 전송에 사용.
+     * radiusHistory.peekFirst() = 40틱 전 currentRadius = 현재 파괴 반경.
+     * scan 속도가 가변적(대반경에서 느려짐)이어도 자동 반영.
      */
     public int getDestructionRadius() {
         if (radiusHistory.size() < START_DELAY_TICKS) return 0;
@@ -256,7 +257,7 @@ public class MizushiDestructionWave implements SkillExecution {
         ArrayDeque<int[]> ready = scheduledMap.remove(tickCount);
         if (ready != null) overdue.addAll(ready);
 
-        // ── 반경 이력 갱신: START_DELAY_TICKS 틱 전 scan 반경을 파괴 반경으로 노출 ──
+        // ── 반경 이력 갱신: 40틱 슬라이딩 윈도우 ─────────────────────────────
         radiusHistory.addLast(currentRadius);
         if (radiusHistory.size() > START_DELAY_TICKS) radiusHistory.pollFirst();
     }
@@ -284,7 +285,13 @@ public class MizushiDestructionWave implements SkillExecution {
 
     @Override
     public boolean isDone() {
-        return waveDone && overdue.isEmpty() && scheduledMap.isEmpty();
+        // peekFirst() >= maxRadius: 40틱 전 scan이 maxRadius에 도달 = 파괴 반경이 이제 maxRadius
+        // 이 조건 전에 해제되면 radiusHistory가 frozen → getDestructionRadius()가 maxRadius 미달인 채 고정됨.
+        // scan 속도가 가변적이어도 실제 파괴 반경이 도달한 시점을 정확히 감지.
+        boolean destructionComplete = !radiusHistory.isEmpty()
+                && radiusHistory.peekFirst() >= maxRadius;
+        return waveDone && overdue.isEmpty() && scheduledMap.isEmpty()
+               && destructionComplete;
     }
 
     @Override

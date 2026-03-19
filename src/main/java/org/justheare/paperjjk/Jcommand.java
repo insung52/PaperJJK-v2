@@ -52,6 +52,7 @@ public class Jcommand implements TabExecutor {
             case "save"   -> handleSave(player);
             case "id"     -> handleId(player, args);
             case "set"    -> handleSet(player, args);
+            case "debug"  -> handleDebug(player, args);
             default       -> sendHelp(player);
         }
         return true;
@@ -345,6 +346,25 @@ public class Jcommand implements TabExecutor {
         }
     }
 
+    // ── /jjk debug <domain> ───────────────────────────────────────────────
+
+    private void handleDebug(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(Component.text("사용법: /jjk debug <domain>", NamedTextColor.YELLOW));
+            return;
+        }
+        switch (args[1].toLowerCase()) {
+            case "domain" -> {
+                JPacketSender.DOMAIN_DEBUG = !JPacketSender.DOMAIN_DEBUG;
+                String state = JPacketSender.DOMAIN_DEBUG ? "§aON" : "§cOFF";
+                player.sendMessage(Component.text("[JJK] 도메인 패킷 디버그: ", NamedTextColor.GOLD)
+                    .append(Component.text(JPacketSender.DOMAIN_DEBUG ? "ON" : "OFF",
+                        JPacketSender.DOMAIN_DEBUG ? NamedTextColor.GREEN : NamedTextColor.RED)));
+            }
+            default -> player.sendMessage(Component.text("알 수 없는 debug 대상: " + args[1], NamedTextColor.RED));
+        }
+    }
+
     // ── 유틸 ──────────────────────────────────────────────────────────────
 
     private JPlayer getJPlayer(Player player) {
@@ -366,6 +386,7 @@ public class Jcommand implements TabExecutor {
         player.sendMessage("§e/jjk id destroy §7— 생득 영역 초기화");
         player.sendMessage("§e/jjk set <변수> <값> §7— 수치 변경");
         player.sendMessage("§7  변수: maxce, currentce, efficiency, rct, airgrasp, domainlevel");
+        player.sendMessage("§e/jjk debug domain §7— 도메인 패킷 로그 토글");
     }
 
     private String formatLoc(org.bukkit.Location loc) {
@@ -377,7 +398,10 @@ public class Jcommand implements TabExecutor {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                       @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("basic", "refill", "save", "id", "set");
+            return List.of("basic", "refill", "save", "id", "set", "debug");
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
+            return List.of("domain");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("basic")) {
             return List.of("infinity", "mizushi", "physical_gifted", "mahoraga");
