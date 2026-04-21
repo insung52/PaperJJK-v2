@@ -53,30 +53,39 @@ docker logs crafty 2>&1 | grep -A3 "username\|password\|admin"
 1. 브라우저에서 `https://localhost:8443` 접속
    - 인증서 경고 뜨면 **고급 → 계속 진행** 클릭 (자체서명 인증서라 정상)
 2. 로그인 후 비밀번호 변경
-3. 좌측 메뉴 → **Servers** → **Import Existing Server** 클릭
+3. 좌측 메뉴 → **Servers** → **Create New Server** 클릭
+   - Import는 ZIP 파일만 지원하므로 사용 불가
 4. 아래 값 입력:
 
 | 항목 | 값 |
 |---|---|
 | Server Name | PaperJJK-v2 |
-| Server Directory | `/Users/insung/Documents/mc/server` |
-| Executable | `paper.jar` |
 | Server Type | Paper |
 | Memory (Min) | `2048` |
 | Memory (Max) | `10240` |
-| Java Executable Path | `/java21/bin/java` |
 
-5. **Import** 클릭 → 서버 목록에 뜨면 완료
+5. 생성 완료 후 → 서버 **Config** 탭 → **Java Executable Path**: `/java21/bin/java` 로 변경
+
+> Crafty는 서버 파일을 컨테이너 내부 `/crafty/servers/UUID/` 에 자동 생성함.
+> 기존 서버 폴더(`/Users/insung/Documents/mc/server`)와 별개로 관리됨.
+> deploy.sh에서 `docker cp`로 컨테이너 안에 직접 JAR을 복사하는 방식 사용.
 
 ---
 
-## Phase 4 — 서버 ID 확인
+## Phase 4 — 서버 ID 및 컨테이너 내부 경로 확인
 
+### 서버 ID
 Crafty 웹 UI → Servers → 서버 클릭 → 주소창 URL 확인:
 ```
 https://localhost:8443/#/server/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/dashboard
 ```
 `xxxxxxxx-xxxx-...` 부분이 서버 ID — 복사해 두기
+
+### 컨테이너 내부 plugins 경로 확인
+```bash
+docker exec crafty find /crafty/servers -name "plugins" -type d
+```
+현재 경로: `/crafty/servers/a039a9cd-168e-4766-8dc2-b5efd5797901/plugins`
 
 > **API 키 UI 관련:** Crafty의 API 키 생성 UI는 키 값을 표시하지 않는 버그가 있음.
 > 대신 로그인 API로 토큰을 매번 발급받는 방식 사용 (아이디/비번 기반).
@@ -85,7 +94,7 @@ https://localhost:8443/#/server/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/dashboard
 
 ## Phase 5 — deploy.sh 수정
 
-기존 screen 방식 → Crafty API 방식으로 교체.
+기존 screen 방식 → Crafty API + docker cp 방식으로 교체.
 
 맥북 터미널에서 아래 명령 전체 복붙:
 
@@ -95,7 +104,7 @@ cat > /Users/insung/Documents/mc/server/deploy.sh << 'EOF'
 set -e
 
 JAR_NAME="PaperJJK-v2.jar"
-PLUGINS_DIR="/Users/insung/Documents/mc/server/plugins"
+CONTAINER_PLUGINS="/crafty/servers/a039a9cd-168e-4766-8dc2-b5efd5797901/plugins"
 CRAFTY_URL="https://localhost:8443"
 CRAFTY_USER="admin"
 CRAFTY_PASS="여기에_Crafty_비밀번호"
@@ -115,8 +124,11 @@ sleep 20
 echo "[deploy] Downloading latest JAR..."
 curl -fsSL \
   -H "Accept: application/octet-stream" \
-  -o "$PLUGINS_DIR/$JAR_NAME" \
+  -o "/tmp/$JAR_NAME" \
   "https://github.com/$REPO/releases/latest/download/$JAR_NAME"
+
+echo "[deploy] Copying JAR into container..."
+docker cp "/tmp/$JAR_NAME" "crafty:$CONTAINER_PLUGINS/$JAR_NAME"
 
 echo "[deploy] Starting server..."
 curl -sk -X POST "$CRAFTY_URL/api/v2/servers/$CRAFTY_SERVER_ID/action/start_server" \
