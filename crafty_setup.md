@@ -1,0 +1,177 @@
+# Crafty Controller 설정 가이드
+
+## Crafty란?
+
+브라우저 기반 마인크래프트 서버 관리 패널.
+터미널 명령어 없이 웹 UI에서 모든 것을 관리할 수 있음.
+
+| 기능 | screen 방식 | Crafty |
+|---|---|---|
+| 서버 시작/정지 | 터미널 명령어 | 버튼 클릭 |
+| 콘솔 | `screen -r` | 브라우저 |
+| 로그 | `tail -f` | 브라우저 탭 |
+| RAM/CPU 그래프 | btop 별도 설치 | 브라우저 내장 |
+| 파일 관리 | Finder/터미널 | 브라우저 내장 |
+
+---
+
+## Phase 1 — Docker Desktop 설치
+
+1. https://www.docker.com/products/docker-desktop/ 접속
+2. **Mac Apple Silicon** 버전 다운로드
+3. 설치 후 Docker Desktop 실행 (상단 바에 고래 아이콘 뜨면 정상)
+
+---
+
+## Phase 2 — Crafty 실행
+
+맥북 터미널:
+
+```bash
+docker run -d \
+  --name crafty \
+  -p 8443:8443 \
+  -p 25500-25600:25500-25600 \
+  -v /Users/insung/Documents/mc/crafty:/data \
+  --restart unless-stopped \
+  registry.gitlab.com/crafty-controller/crafty-4:latest
+```
+
+초기 로그인 정보 확인:
+```bash
+docker logs crafty 2>&1 | grep -A3 "username\|password\|admin"
+```
+
+---
+
+## Phase 3 — 웹 UI 초기 설정
+
+1. 브라우저에서 `https://localhost:8443` 접속
+   - 인증서 경고 뜨면 **고급 → 계속 진행** 클릭 (자체서명 인증서라 정상)
+2. 로그인 후 비밀번호 변경
+3. 좌측 메뉴 → **Servers** → **Import Existing Server** 클릭
+4. 아래 값 입력:
+
+| 항목 | 값 |
+|---|---|
+| Server Name | PaperJJK-v2 |
+| Server Directory | `/Users/insung/Documents/mc/server` |
+| Executable | `paper.jar` |
+| Server Type | Paper |
+| Memory (Min) | `2048` |
+| Memory (Max) | `8192` |
+
+5. **Import** 클릭 → 서버 목록에 뜨면 완료
+
+---
+
+## Phase 4 — API 키 및 서버 ID 확인
+
+deploy.sh에서 Crafty API로 서버를 제어하려면 필요.
+
+### API 키 발급
+Crafty 웹 UI → 우측 상단 프로필 아이콘 → **API Keys** → **Add API Key**
+- 이름: `deploy`
+- 권한: **Servers** 체크
+- 생성 후 키 값 복사
+
+### 서버 ID 확인
+Crafty 웹 UI → Servers → 서버 클릭 → 주소창 URL 확인
+```
+https://localhost:8443/#/server/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/dashboard
+```
+위 URL에서 `xxxxxxxx-xxxx-...` 부분이 서버 ID
+
+---
+
+## Phase 5 — deploy.sh 수정
+
+기존 screen 방식 → Crafty API 방식으로 교체.
+
+맥북 터미널에서 아래 명령 전체 복붙:
+
+```bash
+cat > /Users/insung/Documents/mc/server/deploy.sh << 'EOF'
+#!/bin/bash
+set -e
+
+JAR_NAME="PaperJJK-v2.jar"
+PLUGINS_DIR="/Users/insung/Documents/mc/server/plugins"
+CRAFTY_URL="https://localhost:8443"
+CRAFTY_API_KEY="여기에_API_키_입력"
+CRAFTY_SERVER_ID="여기에_서버_ID_입력"
+
+echo "[deploy] Stopping server via Crafty..."
+curl -sk -X POST "$CRAFTY_URL/api/v2/servers/$CRAFTY_SERVER_ID/action/stop_server" \
+  -H "Authorization: Bearer $CRAFTY_API_KEY"
+sleep 20
+
+echo "[deploy] Downloading latest JAR..."
+curl -fsSL \
+  -H "Accept: application/octet-stream" \
+  -o "$PLUGINS_DIR/$JAR_NAME" \
+  "https://github.com/$REPO/releases/latest/download/$JAR_NAME"
+
+echo "[deploy] Starting server via Crafty..."
+curl -sk -X POST "$CRAFTY_URL/api/v2/servers/$CRAFTY_SERVER_ID/action/start_server" \
+  -H "Authorization: Bearer $CRAFTY_API_KEY"
+
+echo "[deploy] Done."
+EOF
+chmod +x /Users/insung/Documents/mc/server/deploy.sh
+```
+
+`CRAFTY_API_KEY` 와 `CRAFTY_SERVER_ID` 를 Phase 4에서 확인한 값으로 교체.
+
+---
+
+## Phase 6 — start.sh 제거 (선택)
+
+Crafty가 서버 시작/재시작을 담당하므로 기존 `start.sh` 루프는 더 이상 필요 없음.
+
+기존 screen 세션이 살아있으면 종료:
+```bash
+screen -S mcserver -X quit 2>/dev/null || true
+```
+
+---
+
+## Phase 7 — launchd 제거 (선택)
+
+Crafty 컨테이너가 `--restart unless-stopped` 옵션으로 맥북 재부팅 시 자동 시작되므로 기존 launchd plist 불필요.
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.paperjjk.mcserver.plist 2>/dev/null || true
+rm ~/Library/LaunchAgents/com.paperjjk.mcserver.plist
+```
+
+---
+
+## 일상적인 사용법
+
+| 작업 | 방법 |
+|---|---|
+| 서버 시작/정지 | 브라우저 `https://localhost:8443` → 버튼 클릭 |
+| 콘솔 명령 입력 | Crafty 웹 UI → Console 탭 |
+| 로그 확인 | Crafty 웹 UI → Logs 탭 |
+| RAM/CPU 모니터링 | Crafty 웹 UI → Dashboard |
+| 파일 수정 | Crafty 웹 UI → Files 탭 |
+| Crafty 재시작 | `docker restart crafty` |
+| Crafty 로그 확인 | `docker logs crafty` |
+
+---
+
+## 트러블슈팅
+
+**브라우저에서 접속 안 됨:**
+- Docker Desktop 실행 중인지 확인
+- `docker ps` 로 crafty 컨테이너 상태 확인
+
+**서버 Import 후 시작이 안 됨:**
+- Java 경로 설정 확인: Crafty → Server Settings → Executable Path
+- `paper.jar` 파일이 서버 폴더에 있는지 확인
+
+**deploy.sh API 호출 실패:**
+- API 키가 올바른지 확인
+- 서버 ID가 URL에서 복사한 값과 일치하는지 확인
+- `curl -sk` 의 `-k` 는 자체서명 인증서 무시 옵션 (필수)
