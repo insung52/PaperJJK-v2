@@ -12,6 +12,3 @@ build/
 # OS
 .DS_Store
 Thumbs.db
-
-# Gradle wrapper jar (properties는 유지)
-gradle/wrapper/gradle-wrapper.jar
