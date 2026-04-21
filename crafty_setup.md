@@ -65,22 +65,16 @@ docker logs crafty 2>&1 | grep -A3 "username\|password\|admin"
 
 ---
 
-## Phase 4 — API 키 및 서버 ID 확인
+## Phase 4 — 서버 ID 확인
 
-deploy.sh에서 Crafty API로 서버를 제어하려면 필요.
-
-### API 키 발급
-Crafty 웹 UI → 우측 상단 프로필 아이콘 → **API Keys** → **Add API Key**
-- 이름: `deploy`
-- 권한: **Servers** 체크
-- 생성 후 키 값 복사
-
-### 서버 ID 확인
-Crafty 웹 UI → Servers → 서버 클릭 → 주소창 URL 확인
+Crafty 웹 UI → Servers → 서버 클릭 → 주소창 URL 확인:
 ```
 https://localhost:8443/#/server/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/dashboard
 ```
-위 URL에서 `xxxxxxxx-xxxx-...` 부분이 서버 ID
+`xxxxxxxx-xxxx-...` 부분이 서버 ID — 복사해 두기
+
+> **API 키 UI 관련:** Crafty의 API 키 생성 UI는 키 값을 표시하지 않는 버그가 있음.
+> 대신 로그인 API로 토큰을 매번 발급받는 방식 사용 (아이디/비번 기반).
 
 ---
 
@@ -98,12 +92,19 @@ set -e
 JAR_NAME="PaperJJK-v2.jar"
 PLUGINS_DIR="/Users/insung/Documents/mc/server/plugins"
 CRAFTY_URL="https://localhost:8443"
-CRAFTY_API_KEY="여기에_API_키_입력"
-CRAFTY_SERVER_ID="여기에_서버_ID_입력"
+CRAFTY_USER="admin"
+CRAFTY_PASS="여기에_Crafty_비밀번호"
+CRAFTY_SERVER_ID="여기에_서버_ID"
 
-echo "[deploy] Stopping server via Crafty..."
+echo "[deploy] Getting Crafty token..."
+TOKEN=$(curl -sk -X POST "$CRAFTY_URL/api/v2/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$CRAFTY_USER\",\"password\":\"$CRAFTY_PASS\"}" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['token'])")
+
+echo "[deploy] Stopping server..."
 curl -sk -X POST "$CRAFTY_URL/api/v2/servers/$CRAFTY_SERVER_ID/action/stop_server" \
-  -H "Authorization: Bearer $CRAFTY_API_KEY"
+  -H "Authorization: Bearer $TOKEN"
 sleep 20
 
 echo "[deploy] Downloading latest JAR..."
@@ -112,16 +113,16 @@ curl -fsSL \
   -o "$PLUGINS_DIR/$JAR_NAME" \
   "https://github.com/$REPO/releases/latest/download/$JAR_NAME"
 
-echo "[deploy] Starting server via Crafty..."
+echo "[deploy] Starting server..."
 curl -sk -X POST "$CRAFTY_URL/api/v2/servers/$CRAFTY_SERVER_ID/action/start_server" \
-  -H "Authorization: Bearer $CRAFTY_API_KEY"
+  -H "Authorization: Bearer $TOKEN"
 
 echo "[deploy] Done."
 EOF
 chmod +x /Users/insung/Documents/mc/server/deploy.sh
 ```
 
-`CRAFTY_API_KEY` 와 `CRAFTY_SERVER_ID` 를 Phase 4에서 확인한 값으로 교체.
+`CRAFTY_PASS` 와 `CRAFTY_SERVER_ID` 를 실제 값으로 교체.
 
 ---
 
@@ -172,6 +173,13 @@ rm ~/Library/LaunchAgents/com.paperjjk.mcserver.plist
 - `paper.jar` 파일이 서버 폴더에 있는지 확인
 
 **deploy.sh API 호출 실패:**
-- API 키가 올바른지 확인
+- `CRAFTY_PASS` 가 현재 Crafty 로그인 비밀번호와 일치하는지 확인
 - 서버 ID가 URL에서 복사한 값과 일치하는지 확인
 - `curl -sk` 의 `-k` 는 자체서명 인증서 무시 옵션 (필수)
+- 토큰 발급 테스트:
+  ```bash
+  curl -sk -X POST "https://localhost:8443/api/v2/auth/login" \
+    -H "Content-Type: application/json" \
+    -d '{"username":"admin","password":"비밀번호"}' | python3 -m json.tool
+  ```
+  응답에 `data.token` 값이 있으면 정상
