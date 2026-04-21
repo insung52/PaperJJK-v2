@@ -49,5 +49,7 @@ processResources {
 
 tasks.jar {
     archiveFileName = 'PaperJJK-v2.jar'
-    destinationDirectory = file('C:\\Users\\rapid\\Desktop\\exfil1.21.11\\plugins')
+    if (!System.getenv('CI')) {
+        destinationDirectory = file('C:\\Users\\rapid\\Desktop\\exfil1.21.11\\plugins')
+    }
 }
