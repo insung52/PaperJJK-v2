@@ -25,6 +25,9 @@
 
 ## Phase 2 — Crafty 실행
 
+Crafty 컨테이너 내부는 Java 25(Ubuntu 24.04)만 있어서 Paper와 충돌함.
+맥북의 Java 21을 컨테이너 안에 마운트해서 사용.
+
 맥북 터미널:
 
 ```bash
@@ -33,6 +36,7 @@ docker run -d \
   -p 8443:8443 \
   -p 25500-25600:25500-25600 \
   -v /Users/insung/Documents/mc/crafty:/data \
+  -v $(/usr/libexec/java_home -v 21):/java21:ro \
   --restart unless-stopped \
   registry.gitlab.com/crafty-controller/crafty-4:latest
 ```
@@ -59,7 +63,8 @@ docker logs crafty 2>&1 | grep -A3 "username\|password\|admin"
 | Executable | `paper.jar` |
 | Server Type | Paper |
 | Memory (Min) | `2048` |
-| Memory (Max) | `8192` |
+| Memory (Max) | `10240` |
+| Java Executable Path | `/java21/bin/java` |
 
 5. **Import** 클릭 → 서버 목록에 뜨면 완료
 
@@ -168,8 +173,13 @@ rm ~/Library/LaunchAgents/com.paperjjk.mcserver.plist
 - Docker Desktop 실행 중인지 확인
 - `docker ps` 로 crafty 컨테이너 상태 확인
 
+**서버 시작 시 SIGSEGV / JVM crash:**
+- Crafty 컨테이너 기본 Java(25)와 Paper 충돌
+- 컨테이너를 Java 21 마운트 버전으로 재생성해야 함 (Phase 2 참고)
+- 재생성 후 Crafty → 서버 Config → Java Executable Path: `/java21/bin/java` 설정
+
 **서버 Import 후 시작이 안 됨:**
-- Java 경로 설정 확인: Crafty → Server Settings → Executable Path
+- Java Executable Path가 `/java21/bin/java` 로 설정됐는지 확인
 - `paper.jar` 파일이 서버 폴더에 있는지 확인
 
 **deploy.sh API 호출 실패:**
