@@ -34,7 +34,7 @@ Crafty 컨테이너 내부는 Java 25(Ubuntu 24.04)만 있어서 Paper와 충돌
 docker run -d \
   --name crafty \
   -p 8443:8443 \
-  -p 25500-25600:25500-25600 \
+  -p 27462:27462 \
   -v /Users/insung/Documents/mc/crafty:/data \
   -v $(/usr/libexec/java_home -v 21):/java21:ro \
   --restart unless-stopped \
