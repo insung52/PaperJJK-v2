@@ -2,7 +2,10 @@ package org.justheare.paperjjk.barrier;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.justheare.paperjjk.skill.SkillExecution;
+
+import javax.annotation.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -40,6 +43,7 @@ public class MizushiSurfaceExplosion implements SkillExecution {
     private final Location  center;
     private final int       maxRadius;
     private final List<int[]> shellOffsets;
+    @Nullable private final Entity source;
 
     // ── 바닥 페이즈 ──────────────────────────────────────────────────────────
     private int     floorRadius = 1;
@@ -52,10 +56,11 @@ public class MizushiSurfaceExplosion implements SkillExecution {
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public MizushiSurfaceExplosion(Location center, int radius) {
+    public MizushiSurfaceExplosion(Location center, int radius, @Nullable Entity source) {
         this.center       = center.clone();
         this.maxRadius    = radius;
         this.shellOffsets = DomainBlockBuilder.getSphereOffsets(radius + 1);
+        this.source       = source;
     }
 
     @Override
@@ -87,7 +92,7 @@ public class MizushiSurfaceExplosion implements SkillExecution {
                 int bx = cx + (int) Math.round(floorRadius * Math.cos(a));
                 int bz = cz + (int) Math.round(floorRadius * Math.sin(a));
                 if (!world.getBlockAt(bx, cy, bz).isEmpty()) {
-                    world.createExplosion(bx + 0.5, cy + 1.5, bz + 0.5, 7f, true, true);
+                    world.createExplosion(bx + 0.5, cy + 1.5, bz + 0.5, 7f, true, true, source);
                 }
             }
         }
@@ -134,7 +139,7 @@ public class MizushiSurfaceExplosion implements SkillExecution {
         int count = 0;
         while (!explosionQueue.isEmpty() && count < MAX_SHELL_EXPLODE_PER_TICK) {
             int[] pos = explosionQueue.poll();
-            world.createExplosion(pos[0], pos[1], pos[2], 5f, true, true);
+            world.createExplosion(pos[0], pos[1], pos[2], 5f, true, true, source);
             count++;
         }
     }

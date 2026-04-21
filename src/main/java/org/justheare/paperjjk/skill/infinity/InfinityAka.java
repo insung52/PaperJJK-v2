@@ -178,7 +178,7 @@ public class InfinityAka extends ActiveSkill {
                     remainingPower *= POWER_DECAY_LIQUID;
                 } else {
                     float explodeSize = (float) Math.pow(remainingPower, 0.5);
-                    akaLocation.createExplosion(explodeSize, false, true);
+                    akaLocation.createExplosion(p, explodeSize, false, true);
                     remainingPower *= POWER_DECAY_SOLID;
                 }
                 if (remainingPower < 1) { end(); return; }
@@ -311,7 +311,7 @@ public class InfinityAka extends ActiveSkill {
             targetEntity.receiveDamage(
                     DamageInfo.skillHit(caster, DamageType.CURSED, output, "infinity_aka"));
         } else {
-            living.damage(DamageInfo.outputToDamage(output));
+            living.damage(DamageInfo.outputToDamage(output), caster.getLivingEntity());
         }
     }
 

@@ -229,7 +229,7 @@ public class MizushiKai extends ActiveSkill {
             target.receiveDamage(DamageInfo.skillHit(caster, DamageType.CURSED,
                     output * 100, "mizushi_kai"));
         } else {
-            living.damage(DamageInfo.outputToDamage(output * 100));
+            living.damage(DamageInfo.outputToDamage(output * 100), caster.getLivingEntity());
         }
     }
 

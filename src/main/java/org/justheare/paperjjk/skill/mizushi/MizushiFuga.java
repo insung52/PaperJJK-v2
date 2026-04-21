@@ -256,7 +256,7 @@ public class MizushiFuga extends ActiveSkill {
             target.receiveDamage(new DamageInfo(caster, DamageType.CURSED,
                     output * 100, "mizushi_fuga", sureHit, !sureHit));
         } else {
-            living.damage(DamageInfo.outputToDamage(output * 100));
+            living.damage(DamageInfo.outputToDamage(output * 100), caster.getLivingEntity());
         }
     }
 

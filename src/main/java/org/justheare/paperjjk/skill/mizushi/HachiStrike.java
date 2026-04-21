@@ -59,7 +59,7 @@ public class HachiStrike {
             targetJE.receiveDamage(DamageInfo.skillHit(
                     attacker, DamageType.CURSED, output * 100, "mizushi_hachi"));
         } else {
-            target.damage(DamageInfo.outputToDamage(output * 100));
+            target.damage(DamageInfo.outputToDamage(output * 100), attacker.getLivingEntity());
         }
         broadcastEffect(hitLoc);
     }
@@ -93,7 +93,7 @@ public class HachiStrike {
     public static void applyDomainVanilla(JEntity attacker, LivingEntity target, double power) {
         double output = calcOutput(attacker, 0, power);
         DamageInfo.setnodamagetick(target);
-        target.damage(DamageInfo.outputToDamage(output * 100));
+        target.damage(DamageInfo.outputToDamage(output * 100), attacker.getLivingEntity());
         Location hitLoc = target.getLocation().add(0, target.getHeight() / 2.0, 0);
         broadcastEffect(hitLoc);
     }

@@ -236,7 +236,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
         float radius = (float) getRange();
 
         // 1. 반경 내 엔티티 데미지 — radius^2.4 에 비례 (분진 부피에 비례)
-        double damage = Math.pow(radius, 2.4) * 5;
+        double damage = Math.pow(radius, 2.4) * 0.1;
         if (center.getWorld() != null) {
             for (LivingEntity le : center.getWorld().getNearbyLivingEntities(center, radius)) {
                 if (le == caster.entity) continue;
@@ -246,7 +246,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 if (target != null) {
                     target.receiveDamage(DamageInfo.domainSureHit(caster, damage, "mizushi_fuga_explosion"));
                 } else {
-                    le.damage(DamageInfo.outputToDamage(damage));
+                    le.damage(DamageInfo.outputToDamage(damage), caster.getLivingEntity());
                 }
             }
         }
@@ -256,7 +256,7 @@ public class MizushiDomainExpansion extends DomainExpansion {
         JPacketSender.broadcastMizushiThermobaric(center, radius, broadcastRange);
 
         // 3. 경계(반경+1) 지상 블럭 폭발+화염 이펙트
-        WorkScheduler.getInstance().register(new MizushiSurfaceExplosion(center, (int) radius));
+        WorkScheduler.getInstance().register(new MizushiSurfaceExplosion(center, (int) radius, caster.entity));
 
         // 4. 즉시 영역 종료 (postprocessing + 블럭 파괴 즉시 OFF)
         collapse();

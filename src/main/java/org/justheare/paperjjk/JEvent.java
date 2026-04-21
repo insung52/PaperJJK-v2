@@ -17,6 +17,7 @@ import org.justheare.paperjjk.barrier.InfinityDomainExpansion;
 import org.justheare.paperjjk.barrier.MizushiDomainExpansion;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -48,6 +49,9 @@ public class JEvent implements Listener {
      * key: entity UUID → (cause name → last hit time ms)
      */
     private final Map<UUID, Map<String, Long>> mobEnvCooldowns = new HashMap<>();
+
+    /** onAttackMob 재귀 방지: bonus damage 처리 중인 몹 UUID */
+    private final Set<UUID> mobBonusDamageInProgress = new HashSet<>();
 
     /** 쿨다운이 적용되는 환경 데미지 소스 */
     private static final Set<DamageCause> COOLDOWN_CAUSES = Set.of(
@@ -132,6 +136,12 @@ public class JEvent implements Listener {
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         Entity damagee = event.getEntity();
 
+        // 자기 자신이 발생시킨 폭발이 자신에게 데미지를 주는 케이스 차단
+        if (damagee.getUniqueId().equals(event.getDamager().getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+
         // suppress 체크를 먼저 — pipeline echo 이벤트는 setnodamagetick 없이 그냥 통과
         JEntity victim = JEntityManager.instance.get(damagee.getUniqueId());
         if (victim != null && victim.suppressDamageEvent) {
@@ -146,10 +156,18 @@ public class JEvent implements Listener {
 
         if (victim == null) {
             // 일반 몹(비-JEntity) — 술식 onAttackMob 발동 (vanilla 데미지는 그대로)
+            // mobBonusDamageInProgress 가드: onAttackMob 내 mob.damage() 재귀 방지
+            if (mobBonusDamageInProgress.contains(damagee.getUniqueId())) return;
+
             if (event.getDamager() instanceof Player p && damagee instanceof LivingEntity mob) {
                 JEntity jAttacker = JEntityManager.instance.get(p.getUniqueId());
                 if (jAttacker != null && jAttacker.technique != null) {
-                    jAttacker.technique.onAttackMob(mob);
+                    mobBonusDamageInProgress.add(mob.getUniqueId());
+                    try {
+                        jAttacker.technique.onAttackMob(mob);
+                    } finally {
+                        mobBonusDamageInProgress.remove(mob.getUniqueId());
+                    }
                 }
             }
             return;

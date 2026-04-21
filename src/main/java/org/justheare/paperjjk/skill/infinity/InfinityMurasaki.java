@@ -215,7 +215,7 @@ public class InfinityMurasaki extends ActiveSkill {
             murasakiLocation.add(direction.clone().multiply(STEP_SIZE));
 
             float explodeSize = (float)(Math.pow(power, 0.5) + 1);
-            murasakiLocation.createExplosion(explodeSize, false, true);
+            murasakiLocation.createExplosion(p, explodeSize, false, true);
 
             double searchR = 1 + Math.pow(power, 0.5);
             List<Entity> nearby = (List<Entity>) murasakiLocation.getNearbyEntities(
@@ -434,7 +434,7 @@ public class InfinityMurasaki extends ActiveSkill {
             targetEntity.receiveDamage(
                     DamageInfo.skillHit(caster, DamageType.CURSED, output*100, "infinity_murasaki"));
         } else {
-            living.damage(DamageInfo.outputToDamage(output*100));
+            living.damage(DamageInfo.outputToDamage(output*100), caster.getLivingEntity());
         }
     }
 

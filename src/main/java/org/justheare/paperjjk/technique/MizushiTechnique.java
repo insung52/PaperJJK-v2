@@ -66,7 +66,7 @@ public class MizushiTechnique extends Technique {
         boolean burned = owner.isTechniqueBlocked();
         double bonus = burned ? consumed : consumed * TECHNIQUE_MULT;
         DamageInfo.setnodamagetick(mob);
-        mob.damage(DamageInfo.outputToDamage(bonus));
+        mob.damage(DamageInfo.outputToDamage(bonus), owner.getLivingEntity());
         if (!burned) spawnMizushiHitEffect(mob);
     }
 
