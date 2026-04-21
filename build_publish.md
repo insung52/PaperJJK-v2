@@ -56,13 +56,26 @@ tailscale up
 tailscale status   # 호스트명 확인
 ```
 
-### 1-2. Tailscale Admin에서 OAuth Client 생성
+### 1-2. Tailscale Admin에서 Trust Credential 생성
 
-1. https://login.tailscale.com/admin/settings/oauth 접속
-2. **Generate OAuth client** 클릭
-3. Scope: **auth_keys** → Write 체크
-4. Tags: `tag:ci` 추가
-5. **Client ID** 와 **Client Secret** 복사해 두기
+1. https://login.tailscale.com/admin/settings/trust-credentials 접속
+2. **"credential 새로 만들기"** 클릭
+3. 아래 값 입력:
+
+| 항목 | 값 |
+|---|---|
+| 타입 | **OpenID Connect** |
+| Issuer | `https://token.actions.githubusercontent.com` |
+| Audience | `https://tailscale.com` |
+| Subject | `repo:깃허브유저명/PaperJJK-v2:ref:refs/heads/main` |
+| Scope | **auth_keys → Write** |
+| Tags | `tag:ci` |
+
+4. 생성 후 나오는 **Client ID** 와 **Audience** 값 복사 (Secret 없음, 이게 신방식)
+
+TgyNemds8421CNTRL-khPdissLqx11CNTRL
+
+https://tailscale.com
 
 ### 1-3. ACL에 tag:ci 추가
 
@@ -91,8 +104,8 @@ ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/deploy_key -N ""
 ### 2-2. 맥북에 공개키 등록
 
 ```bash
-# 맥북에서 실행
-cat deploy_key.pub >> ~/.ssh/authorized_keys
+# 맥북 터미널 어디서든 실행 가능 (절대경로 사용)
+cat ~/.ssh/deploy_key.pub >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
@@ -108,12 +121,14 @@ GitHub 레포 → Settings → Secrets and variables → Actions → New reposit
 
 | Secret 이름 | 값 |
 |---|---|
-| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth Client ID |
-| `TS_OAUTH_SECRET` | Tailscale OAuth Client Secret |
+| `TS_OAUTH_CLIENT_ID` | Tailscale Trust Credential의 Client ID |
+| `TS_AUDIENCE` | Tailscale Trust Credential의 Audience (`https://tailscale.com`) |
 | `MAC_HOST` | 맥북 Tailscale 호스트명 (`macbook.tail1234.ts.net`) |
 | `MAC_USER` | 맥북 사용자명 |
 | `MAC_SSH_KEY` | `deploy_key` 파일 전체 내용 (개인키) |
 | `GITHUB_TOKEN` | 자동 제공됨 (등록 불필요) |
+
+> `TS_OAUTH_SECRET`은 신방식(Trust Credentials)에서 불필요 — Client ID + Audience로 대체됨
 
 ---
 
@@ -130,6 +145,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write   # Trust Credentials (Workload Identity) 필수
 
 jobs:
   build-and-deploy:
@@ -158,10 +174,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
+        uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
 
       - name: Deploy to Mac server
@@ -317,7 +333,8 @@ tasks.jar {
 
 **Tailscale 연결 실패 (tag:ci 오류):**
 - ACL에 `"tagOwners": {"tag:ci": []}` 추가했는지 확인
-- OAuth Client의 scope가 `auth_keys` Write인지 확인
+- Trust Credential의 scope가 `auth_keys` Write인지 확인
+- workflow permissions에 `id-token: write` 있는지 확인
 
 **SSH 연결 거부:**
 - 맥북 원격 로그인 ON 확인
