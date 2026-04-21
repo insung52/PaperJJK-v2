@@ -102,6 +102,7 @@ docker exec crafty find /crafty/servers -name "plugins" -type d
 cat > /Users/insung/Documents/mc/server/deploy.sh << 'EOF'
 #!/bin/bash
 set -e
+export PATH=$PATH:/usr/local/bin
 
 JAR_NAME="PaperJJK-v2.jar"
 CONTAINER_PLUGINS="/crafty/servers/a039a9cd-168e-4766-8dc2-b5efd5797901/plugins"
