@@ -23,7 +23,9 @@ jobs:
           distribution: 'temurin'
 
       - name: Build with Gradle
-        run: ./gradlew build
+        run: |
+          chmod +x gradlew
+          ./gradlew build
 
       - name: Upload to GitHub Release (dev-latest)
         uses: softprops/action-gh-release@v2
