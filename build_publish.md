@@ -40,6 +40,7 @@ GitHub Actions
 | 서버 실행 스크립트 | `/Users/insung/Documents/mc/server/start.sh` |
 | 맥북 사용자명 | `insung` |
 
+hi
 ---
 
 ## 구성 요소
@@ -310,16 +311,37 @@ EOF
 chmod +x /Users/insung/Documents/mc/server/start.sh
 ```
 
-서버 수동 시작:
+### screen 명령어 정리
+
+| 명령어 | 설명 |
+|---|---|
+| `screen -dmS mcserver bash /Users/insung/Documents/mc/server/start.sh` | 서버 시작 (백그라운드) |
+| `screen -r mcserver` | 서버 콘솔 접속 |
+| `screen -ls` | 전체 세션 목록 보기 |
+| `screen -S mcserver -X quit` | 세션 강제 종료 (서버 즉시 죽음) |
+
+**콘솔 접속 중일 때:**
+
+| 키 | 설명 |
+|---|---|
+| `Ctrl+A` → `D` | 콘솔에서 나오기 (서버는 유지) |
+| `stop` 입력 후 Enter | 서버 정상 종료 후 3초 뒤 재시작 |
+
+**재시작 없이 완전 종료:**
 ```bash
-screen -dmS mcserver bash /Users/insung/Documents/mc/server/start.sh
+screen -S mcserver -X stuff "stop$(printf '\r')" && sleep 15 && screen -S mcserver -X quit
+
+screen -S mcserver -X quit
 ```
 
-서버 콘솔 접속:
-```bash
-screen -r mcserver
-# 콘솔에서 나오려면 Ctrl+A → D (서버는 유지됨)
-```
+방법 A — 간단: 터미널 두 개 띄우기
+
+로그 실시간 보기:
+tail -f /Users/insung/Documents/mcserver/logs/latest.log
+
+RAM/CPU 그래프:
+brew install btop
+btop
 
 ---
 
@@ -415,3 +437,47 @@ tasks.jar {
 
 **월 1,000분 초과 시:**
 - main 대신 태그 푸시에서만 배포하도록 워크플로 조건 변경
+
+---
+
+## 주의: 서버가 멈추지 않는 경우
+
+**원인:** launchd `KeepAlive=true` + `start.sh` 무한루프가 이중으로 재시작을 걸면 `kill`이나 `stop`을 해도 계속 살아남.
+
+**해결: Phase 7 plist에서 `KeepAlive` 제거**
+
+재시작은 `start.sh` 루프 하나만 담당하면 충분. 맥북에서 plist 재작성:
+
+```bash
+cat > ~/Library/LaunchAgents/com.paperjjk.mcserver.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.paperjjk.mcserver</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/insung/Documents/mc/server/start.sh</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/insung/Documents/mc/server/server.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/insung/Documents/mc/server/server.log</string>
+</dict>
+</plist>
+EOF
+launchctl load ~/Library/LaunchAgents/com.paperjjk.mcserver.plist
+```
+
+**이후 정상 종료 방법:**
+
+```bash
+screen -S mcserver -X stuff "stop$(printf '\r')" && sleep 15 && screen -S mcserver -X quit
+```
+
+screen 세션이 종료되면 launchd가 재시작하지 않음.
