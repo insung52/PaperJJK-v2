@@ -312,7 +312,6 @@ EOF
 chmod +x /Users/insung/Documents/mc/server/start.sh
 ```
 
-
 ### screen 명령어 정리
 
 | 명령어 | 설명 |
