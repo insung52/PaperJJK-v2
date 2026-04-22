@@ -94,7 +94,6 @@ docker exec crafty find /crafty/servers -name "plugins" -type d
 
 ## Phase 5 — deploy.sh 수정
 
-
 기존 screen 방식 → Crafty API + docker cp 방식으로 교체.
 
 맥북 터미널에서 아래 명령 전체 복붙:
