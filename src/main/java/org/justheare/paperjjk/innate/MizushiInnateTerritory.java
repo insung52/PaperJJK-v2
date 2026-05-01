@@ -27,11 +27,11 @@ public class MizushiInnateTerritory extends InnateTerritory {
     public void onActiveTick() {
         damageTickCounter++;
         for (JEntity target : capturedEntities) {
-            if (target == owner) {
-                applyCasterBuff(owner);
-            } else {
-                applySureHit(target);
-            }
+            if (target == owner) applyCasterBuff(owner);
+            else applySureHit(target);
+        }
+        for (org.bukkit.entity.Entity e : capturedVanillaEntities) {
+            if (e instanceof org.bukkit.entity.LivingEntity mob) applySureHitVanilla(mob);
         }
     }
 

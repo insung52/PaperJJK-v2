@@ -2,19 +2,11 @@ package org.justheare.paperjjk.barrier;
 
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.network.JEntityManager;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * 영역전개(Domain Expansion) 추상 기반.
@@ -46,9 +38,10 @@ public abstract class DomainExpansion extends BarrierArts {
     @Nullable
     protected DomainExpansion clashOpponent;
 
-    /** 포획된 일반 엔티티(비-JEntity) 목록 및 원래 위치 */
-    protected final List<Entity> capturedVanillaEntities = new ArrayList<>();
-    protected final Map<UUID, Location> vanillaOriginLocations = new HashMap<>();
+    /** EXPANDING → ACTIVE 전환 시 저장되는 현실 결계 중심 좌표 */
+    protected Location barrierCenter;
+
+    private static final double ENTRY_DETECTION_MARGIN = 1.5;
 
     public enum DomainPhase { EXPANDING, ACTIVE, CLASH, CLOSING, DONE }
 
@@ -94,8 +87,12 @@ public abstract class DomainExpansion extends BarrierArts {
                 updateInsideEntities();
             }
             case ACTIVE -> {
+                if (!isOpen && barrierCenter != null) {
+                    innateTerritory.refreshActiveEntities(barrierCenter);
+                }
                 onDomainActive();
                 updateInsideEntities();
+                if (!isOpen) checkNewEntrantsInBarrier();
             }
             case CLASH -> resolveClash();
             case CLOSING -> onClosing();
@@ -180,7 +177,8 @@ public abstract class DomainExpansion extends BarrierArts {
      * EXPANDING → ACTIVE 전환 시 한 번 호출.
      */
     protected void captureAllEntitiesInRange() {
-        Location center = caster.entity.getLocation();
+        this.barrierCenter = caster.entity.getLocation().clone();
+        Location center = this.barrierCenter;
         double r = getRange();
         World world = center.getWorld();
         if (world == null) return;
@@ -197,47 +195,29 @@ public abstract class DomainExpansion extends BarrierArts {
 
         // ── 일반 엔티티 포획 (결없영은 포획 없이 현실 전개) ─────────────
         if (!isOpen) {
-            captureVanillaEntitiesInRange(center, r, world);
+            innateTerritory.captureVanillaEntitiesInRange(center, r, world);
         }
     }
 
     /**
-     * JEntityManager에 없는 일반 LivingEntity를 생득 영역으로 이전.
+     * 현실 결계 내부에 있는 JEntity가 감지되면 생득 영역으로 이전한다.
+     * 바닐라 엔티티 침입은 refreshActiveEntities() 스캔이 담당하므로 여기서는 처리하지 않는다.
      */
-    private void captureVanillaEntitiesInRange(Location center, double r, World world) {
-        if (!innateTerritory.isReady()) return;
-        Location territoryCenter = innateTerritory.getCenterLocation();
-        double scale = innateTerritory.getInnerRadius() / r;
+    private void checkNewEntrantsInBarrier() {
+        if (barrierCenter == null) return;
+        World world = barrierCenter.getWorld();
+        if (world == null) return;
+        double detectionRadius = range - ENTRY_DETECTION_MARGIN;
 
-        for (Entity e : world.getNearbyEntities(center, r, r, r)) {
-            if (e instanceof Player) continue; // Player 는 JEntity 로 이미 처리됨
-            if (JEntityManager.instance.get(e.getUniqueId()) != null) continue; // JEntity 제외
-            if (!(e instanceof LivingEntity)) continue; // LivingEntity 만 포획
-
-            Location entityLoc = e.getLocation();
-            capturedVanillaEntities.add(e);
-            vanillaOriginLocations.put(e.getUniqueId(), entityLoc.clone());
-
-            // 결계 내 상대 위치를 생득 영역 내부에 비율 매핑
-            double offX = entityLoc.getX() - center.getX();
-            double offY = entityLoc.getY() - center.getY();
-            double offZ = entityLoc.getZ() - center.getZ();
-            Location dest = territoryCenter.clone().add(offX * scale, offY * scale, offZ * scale);
-            e.teleport(dest);
-        }
-    }
-
-    /** 포획된 일반 엔티티를 원래 위치로 귀환 */
-    protected void releaseVanillaEntities() {
-        Location fallback = caster.entity.getLocation();
-        for (Entity e : capturedVanillaEntities) {
-            if (e.isValid()) {
-                Location origin = vanillaOriginLocations.getOrDefault(e.getUniqueId(), fallback);
-                e.teleport(origin);
+        for (JEntity je : JEntityManager.instance.all()) {
+            if (!world.equals(je.entity.getWorld())) continue;
+            if (je == caster) continue;
+            if (je.technique != null && !je.technique.isDomainTarget()) continue;
+            if (innateTerritory.isCaptured(je)) continue;
+            if (je.entity.getLocation().distance(barrierCenter) <= detectionRadius) {
+                innateTerritory.captureEntity(je, barrierCenter, range);
             }
         }
-        capturedVanillaEntities.clear();
-        vanillaOriginLocations.clear();
     }
 
     // ── 출입 조건 ─────────────────────────────────────────────────────────
@@ -271,7 +251,6 @@ public abstract class DomainExpansion extends BarrierArts {
         if (domainPhase == DomainPhase.CLOSING || domainPhase == DomainPhase.DONE) return;
         domainPhase = DomainPhase.CLOSING;
         innateTerritory.releaseAll(caster.entity.getLocation());
-        releaseVanillaEntities();
     }
 
     // ── 조회 ──────────────────────────────────────────────────────────────

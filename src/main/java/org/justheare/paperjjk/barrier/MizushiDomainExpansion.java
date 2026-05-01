@@ -9,6 +9,7 @@ import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.innate.MizushiInnateTerritory;
+import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.JPacketSender;
 import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.scheduler.WorkScheduler;
@@ -163,25 +164,37 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 WorkScheduler.getInstance().register(blockSuppressor);
             }
 
-            // 매 틱 범위 내 LivingEntity에 팔(Hachi) 필중 (fuga 충전 중에는 중단)
-            if (!fugaCharging) {
-                Location center = domainCenter != null ? domainCenter : caster.entity.getLocation();
-                if (center.getWorld() != null) {
-                    center.getWorld().getNearbyEntities(center, openRange, openRange, openRange)
-                            .stream()
-                            .filter(e -> e instanceof org.bukkit.entity.LivingEntity
-                                    && !(e instanceof org.bukkit.entity.Player))
-                            .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
-                }
-            }
-        } else {
-            // 일반 영역전개: 포획된 바닐라 몹에게 팔(Hachi) 필중
-            for (org.bukkit.entity.Entity e : capturedVanillaEntities) {
-                if (e instanceof org.bukkit.entity.LivingEntity living && e.isValid()) {
-                    mit.applySureHitVanilla(living);
+            // 파괴 파도의 현재 반경 내 엔티티에만 필중 적용 (fuga 충전 중에는 중단)
+            // 결없영은 생득 영역 없이 현실에서 전개되므로 여기서 직접 스캔
+            if (!fugaCharging && destructionWave != null) {
+                double waveRadius = destructionWave.getDestructionRadius();
+                // 파괴 파도가 아직 시작되지 않은 초반 40틱 동안은 필중 없음
+                if (waveRadius > 0) {
+                    Location center = domainCenter != null ? domainCenter : caster.entity.getLocation();
+                    if (center.getWorld() != null) {
+                        // JEntity 플레이어: CE 유무에 따라 Hachi/Kai 필중
+                        for (JEntity je : JEntityManager.instance.all()) {
+                            if (je == caster) continue;
+                            if (je.technique != null && !je.technique.isDomainTarget()) continue;
+                            if (!center.getWorld().equals(je.entity.getWorld())) continue;
+                            if (je.entity.getLocation().distance(center) <= waveRadius) {
+                                mit.applySureHit(je);
+                            }
+                        }
+                        // 바닐라 몹: 팔(Hachi) 필중 (구 형태 보정 포함)
+                        center.getWorld().getNearbyEntities(center, waveRadius, waveRadius, waveRadius)
+                                .stream()
+                                .filter(e -> e instanceof org.bukkit.entity.LivingEntity
+                                        && !(e instanceof org.bukkit.entity.Player)
+                                        && JEntityManager.instance.get(e.getUniqueId()) == null
+                                        && e.getLocation().distance(center) <= waveRadius)
+                                .forEach(e -> mit.applySureHitVanilla((org.bukkit.entity.LivingEntity) e));
+                    }
                 }
             }
         }
+        // 일반 영역전개(isOpen=false)의 바닐라 몹 효과는
+        // MizushiInnateTerritory.onActiveTick() 내 capturedVanillaEntities 순회로 처리
     }
 
     @Override
