@@ -50,12 +50,16 @@ public class MizushiTechnique extends Technique {
         double consumed = consumeBodyRein();
         if (consumed <= 0) return;
 
-        if (owner.isTechniqueBlocked()) {
-            damageInfo.attackOutput += consumed;
-        } else {
-            damageInfo.attackOutput += consumed * TECHNIQUE_MULT;
-            spawnMizushiHitEffect(target.entity);
+        double bonus = owner.isTechniqueBlocked() ? consumed : consumed * TECHNIQUE_MULT;
+
+        if (owner.blackFlash.tryTrigger()) {
+            bonus *= owner.blackFlash.getDamageMultiplier();
+            damageInfo.isBlackFlash    = true;
+            damageInfo.blackFlashBonus = bonus;
         }
+
+        damageInfo.attackOutput += bonus;
+        if (!owner.isTechniqueBlocked()) spawnMizushiHitEffect(target.entity);
     }
 
     @Override
@@ -65,6 +69,12 @@ public class MizushiTechnique extends Technique {
 
         boolean burned = owner.isTechniqueBlocked();
         double bonus = burned ? consumed : consumed * TECHNIQUE_MULT;
+
+        if (owner.blackFlash.tryTrigger()) {
+            bonus *= owner.blackFlash.getDamageMultiplier();
+            org.justheare.paperjjk.effect.BlackFlashEffect.trigger(owner.getLivingEntity(), mob, bonus);
+        }
+
         DamageInfo.setnodamagetick(mob);
         mob.damage(DamageInfo.outputToDamage(bonus), owner.getLivingEntity());
         if (!burned) spawnMizushiHitEffect(mob);

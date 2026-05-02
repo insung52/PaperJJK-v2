@@ -114,7 +114,7 @@ public abstract class JEntity {
         if (reverseOutput != null) reverseOutput.onTick(this);
 
         // 흑섬 Zone 틱
-        blackFlash.onTick();
+        blackFlash.onTick(getLivingEntity());
 
         // 상태이상 틱
         status.onTick(this);
@@ -156,7 +156,15 @@ public abstract class JEntity {
      * 피격 진입점. DamagePipeline.process() 로 위임.
      */
     public DamageResult receiveDamage(DamageInfo info) {
-        return org.justheare.paperjjk.damage.DamagePipeline.process(info, this);
+        DamageResult result = org.justheare.paperjjk.damage.DamagePipeline.process(info, this);
+        // info.isBlackFlash 은 onAttack() 내부에서 세팅되므로 process() 반환 후 체크
+        if (info.isBlackFlash && info.attacker != null
+                && info.attacker.getLivingEntity() != null) {
+            org.justheare.paperjjk.effect.BlackFlashEffect.trigger(
+                    info.attacker.getLivingEntity(), this.getLivingEntity(),
+                    info.blackFlashBonus);
+        }
+        return result;
     }
 
     // ── 스킬 관리 ─────────────────────────────────────────────────────────

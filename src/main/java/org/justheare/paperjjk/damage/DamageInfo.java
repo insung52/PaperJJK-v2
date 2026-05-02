@@ -34,8 +34,10 @@ public class DamageInfo {
 
     // ── Pipeline 진행 중 채워지는 값 ──────────────────────────────────────
 
-    /** DamagePipeline Phase 1에서 흑섬 판정 후 세팅 */
-    public boolean isBlackFlash = false;
+    /** onAttack() 에서 흑섬 발동 후 세팅 */
+    public boolean isBlackFlash    = false;
+    /** 흑섬 발동 시 신체강화 보너스 (attackOutput 단위) — 폭발 파워 계산용 */
+    public double  blackFlashBonus = 0.0;
 
     // ── 생성자 ────────────────────────────────────────────────────────────
 

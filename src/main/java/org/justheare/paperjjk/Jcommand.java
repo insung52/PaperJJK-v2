@@ -154,7 +154,8 @@ public class Jcommand implements TabExecutor {
     //   domainlevel <int>    — 결계술 레벨 (추후 구현, 현재는 저장만)
 
     private static final List<String> SET_VARS = List.of(
-            "maxce", "currentce", "efficiency", "rct", "airgrasp", "domainlevel");
+            "maxce", "currentce", "efficiency", "rct", "airgrasp", "domainlevel",
+            "bfbase", "bfzone");
 
     private void handleSet(Player player, String[] args) {
         if (args.length < 3) {
@@ -232,6 +233,28 @@ public class Jcommand implements TabExecutor {
                 // 결계술 레벨은 추후 구현 — 현재는 안내만
                 player.sendMessage(Component.text(
                         "결계술 레벨 설정은 아직 구현되지 않았습니다.", NamedTextColor.RED));
+            }
+            case "bfbase" -> {
+                double val = parseDouble(player, rawVal); if (val < 0) return;
+                if (val > 1.0) {
+                    player.sendMessage(Component.text("확률은 0.0~1.0 사이로 입력해주세요.", NamedTextColor.RED));
+                    return;
+                }
+                jp.blackFlash.setBaseProbability(val);
+                player.sendMessage(Component.text(
+                        String.format("흑섬 기본 확률 → %.4f (%.2f%%)", val, val * 100),
+                        NamedTextColor.AQUA));
+            }
+            case "bfzone" -> {
+                double val = parseDouble(player, rawVal); if (val < 0) return;
+                if (val > 1.0) {
+                    player.sendMessage(Component.text("확률은 0.0~1.0 사이로 입력해주세요.", NamedTextColor.RED));
+                    return;
+                }
+                jp.blackFlash.setZoneProbability(val);
+                player.sendMessage(Component.text(
+                        String.format("흑섬 Zone 확률 → %.4f (%.2f%%)", val, val * 100),
+                        NamedTextColor.AQUA));
             }
             default -> {
                 player.sendMessage(Component.text(
@@ -386,6 +409,7 @@ public class Jcommand implements TabExecutor {
         player.sendMessage("§e/jjk id destroy §7— 생득 영역 초기화");
         player.sendMessage("§e/jjk set <변수> <값> §7— 수치 변경");
         player.sendMessage("§7  변수: maxce, currentce, efficiency, rct, airgrasp, domainlevel");
+        player.sendMessage("§7        bfbase (흑섬 기본 확률), bfzone (흑섬 Zone 확률)");
         player.sendMessage("§e/jjk debug domain §7— 도메인 패킷 로그 토글");
     }
 
@@ -417,6 +441,8 @@ public class Jcommand implements TabExecutor {
                 case "rct", "airgrasp" -> List.of("true", "false");
                 case "efficiency"      -> List.of("0", "15", "30", "50", "60", "90", "100");
                 case "maxce"           -> List.of("200", "5000000", "50000000", "400000000");
+                case "bfbase"          -> List.of("0.01", "0.05", "0.1");
+                case "bfzone"          -> List.of("0.2", "0.4", "0.6", "1.0");
                 default                -> List.of();
             };
         }

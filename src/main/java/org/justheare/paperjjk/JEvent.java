@@ -164,11 +164,21 @@ public class JEvent implements Listener {
             if (event.getDamager() instanceof Player p && damagee instanceof LivingEntity mob) {
                 JEntity jAttacker = JEntityManager.instance.get(p.getUniqueId());
                 if (jAttacker != null && jAttacker.technique != null) {
+                    boolean bodyReinActive = jAttacker.bodyReinforcement.isActive()
+                            && jAttacker.bodyReinforcement.getCurrent() > 0;
                     mobBonusDamageInProgress.add(mob.getUniqueId());
                     try {
+                        // 흑섬 판정은 onAttackMob() 내부에서 신체강화 보너스에 직접 적용
                         jAttacker.technique.onAttackMob(mob);
                     } finally {
                         mobBonusDamageInProgress.remove(mob.getUniqueId());
+                    }
+                    // 주력 타격 강화 디버그 (onAttackMob 완료 후 → 최신 sessionCount 반영)
+                    if (bodyReinActive) {
+                        int session = jAttacker.blackFlash.getSessionCount();
+                        double ratio = jAttacker.blackFlash.getZoneRatio() * 100;
+                        p.sendMessage(String.format(
+                                "§6[흑섬] 연속: §e%d§6  Zone: §e%.1f%%", session, ratio));
                     }
                 }
             }

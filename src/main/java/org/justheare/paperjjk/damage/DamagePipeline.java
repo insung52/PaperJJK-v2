@@ -16,6 +16,11 @@ public class DamagePipeline {
     private DamagePipeline() {}
 
     public static DamageResult process(DamageInfo info, JEntity victim) {
+        // 신체강화 활성화 여부 스냅샷 — 흑섬 판정·디버그 조건으로 사용
+        boolean attackerHasBodyRein = info.attacker != null
+                && info.attacker.bodyReinforcement.isActive()
+                && info.attacker.bodyReinforcement.getCurrent() > 0;
+
         // Phase 1
         applyAttackerModifiers(info);
 
@@ -37,6 +42,15 @@ public class DamagePipeline {
         if (!result.blocked && info.type == DamageType.PHYSICAL
                 && info.attacker != null && info.attacker.technique != null) {
             info.attacker.technique.onAttack(victim, info);
+
+            // 주력 타격 강화 디버그: 신체강화 사용 시 연속 횟수 표시
+            if (attackerHasBodyRein
+                    && info.attacker.entity instanceof org.bukkit.entity.Player p) {
+                int session = info.attacker.blackFlash.getSessionCount();
+                double ratio = info.attacker.blackFlash.getZoneRatio() * 100;
+                p.sendMessage(String.format(
+                        "§6[흑섬] 연속: §e%d§6  Zone: §e%.1f%%", session, ratio));
+            }
         }
 
         return result;
@@ -47,13 +61,7 @@ public class DamagePipeline {
     private static void applyAttackerModifiers(DamageInfo info) {
         if (info.attacker == null) return;
 
-        // 흑섬 판정 (물리 공격에만)
-        if (info.type == DamageType.PHYSICAL) {
-            if (info.attacker.blackFlash.tryTrigger()) {
-                info.attackOutput *= info.attacker.blackFlash.getDamageMultiplier();
-                info.isBlackFlash = true;
-            }
-        }
+        // 흑섬 판정은 onAttack()/onAttackMob() 에서 신체강화 보너스에 직접 적용
 
         // 술식반전 배율 (REVERSED_CURSED 타입)
         if (info.type == DamageType.REVERSED_CURSED && info.attacker.canReverseOutput()) {

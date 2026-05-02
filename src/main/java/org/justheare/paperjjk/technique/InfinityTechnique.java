@@ -55,12 +55,16 @@ public class InfinityTechnique extends Technique {
         double consumed = consumeBodyRein();
         if (consumed <= 0) return;
 
-        if (owner.isTechniqueBlocked()) {
-            damageInfo.attackOutput += consumed;
-        } else {
-            damageInfo.attackOutput += consumed * TECHNIQUE_MULT;
-            spawnInfinityHitEffect(target.entity);
+        double bonus = owner.isTechniqueBlocked() ? consumed : consumed * TECHNIQUE_MULT;
+
+        if (owner.blackFlash.tryTrigger()) {
+            bonus *= owner.blackFlash.getDamageMultiplier();
+            damageInfo.isBlackFlash    = true;
+            damageInfo.blackFlashBonus = bonus;
         }
+
+        damageInfo.attackOutput += bonus;
+        if (!owner.isTechniqueBlocked()) spawnInfinityHitEffect(target.entity);
     }
 
     @Override
@@ -70,6 +74,12 @@ public class InfinityTechnique extends Technique {
 
         boolean burned = owner.isTechniqueBlocked();
         double bonus = burned ? consumed : consumed * TECHNIQUE_MULT;
+
+        if (owner.blackFlash.tryTrigger()) {
+            bonus *= owner.blackFlash.getDamageMultiplier();
+            org.justheare.paperjjk.effect.BlackFlashEffect.trigger(owner.getLivingEntity(), mob, bonus);
+        }
+
         DamageInfo.setnodamagetick(mob);
         mob.damage(DamageInfo.outputToDamage(bonus), owner.getLivingEntity());
         if (!burned) spawnInfinityHitEffect(mob);
