@@ -5,6 +5,7 @@ import org.justheare.paperjjk.entity.JPlayer;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -19,6 +20,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class JEntityManager {
 
     public static JEntityManager instance;
+
+    /** 스킬 데미지로 vanilla mob에게 damage() 호출 중인 UUID — onAttackMob 발동 차단용 */
+    public static final Set<UUID> skillDamageInProgress = ConcurrentHashMap.newKeySet();
 
     private final Map<UUID, JEntity> entities = new ConcurrentHashMap<>();
 

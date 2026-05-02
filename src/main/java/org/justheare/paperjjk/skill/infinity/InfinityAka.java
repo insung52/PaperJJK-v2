@@ -311,7 +311,12 @@ public class InfinityAka extends ActiveSkill {
             targetEntity.receiveDamage(
                     DamageInfo.skillHit(caster, DamageType.CURSED, output, "infinity_aka"));
         } else {
-            living.damage(DamageInfo.outputToDamage(output), caster.getLivingEntity());
+            org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.add(living.getUniqueId());
+            try {
+                living.damage(DamageInfo.outputToDamage(output), caster.getLivingEntity());
+            } finally {
+                org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.remove(living.getUniqueId());
+            }
         }
     }
 

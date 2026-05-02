@@ -59,7 +59,12 @@ public class HachiStrike {
             targetJE.receiveDamage(DamageInfo.skillHit(
                     attacker, DamageType.CURSED, output * 100, "mizushi_hachi"));
         } else {
-            target.damage(DamageInfo.outputToDamage(output * 100), attacker.getLivingEntity());
+            org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.add(target.getUniqueId());
+            try {
+                target.damage(DamageInfo.outputToDamage(output * 100), attacker.getLivingEntity());
+            } finally {
+                org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.remove(target.getUniqueId());
+            }
         }
         broadcastEffect(hitLoc);
     }
@@ -93,7 +98,12 @@ public class HachiStrike {
     public static void applyDomainVanilla(JEntity attacker, LivingEntity target, double power) {
         double output = calcOutput(attacker, 0, power);
         DamageInfo.setnodamagetick(target);
-        target.damage(DamageInfo.outputToDamage(output * 100), attacker.getLivingEntity());
+        org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.add(target.getUniqueId());
+        try {
+            target.damage(DamageInfo.outputToDamage(output * 100), attacker.getLivingEntity());
+        } finally {
+            org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.remove(target.getUniqueId());
+        }
         Location hitLoc = target.getLocation().add(0, target.getHeight() / 2.0, 0);
         broadcastEffect(hitLoc);
     }

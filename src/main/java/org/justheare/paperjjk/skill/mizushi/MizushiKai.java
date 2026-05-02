@@ -164,16 +164,15 @@ public class MizushiKai extends ActiveSkill {
                 for (Entity e : nearby) {
                     if (hitEntities.contains(e.getUniqueId())) continue;
                     hitEntities.add(e.getUniqueId());
+                    applyKnockback(e,power);
                     if (e instanceof LivingEntity living) {
                         applyKaiDamage(living);
                         living.addScoreboardTag("kai");
-                        e.setVelocity(e.getVelocity().add(fireDirection.clone().multiply(0.1)));
                         power -= Math.max(1, power * 0.1);
                         p.getWorld().playSound(sliceLoc, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK,
                                 SoundCategory.PLAYERS, 4f, 0.6f);
-
-                        // 참격 화면 효과 — 첫 적중 시 1회만 전송
-
+                    } else {
+                        tryDestroyNonLiving(e);
                     }
                 }
 
@@ -229,7 +228,36 @@ public class MizushiKai extends ActiveSkill {
             target.receiveDamage(DamageInfo.skillHit(caster, DamageType.CURSED,
                     output * 100, "mizushi_kai"));
         } else {
-            living.damage(DamageInfo.outputToDamage(output * 100), caster.getLivingEntity());
+            org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.add(living.getUniqueId());
+            try {
+                living.damage(DamageInfo.outputToDamage(output * 100), caster.getLivingEntity());
+            } finally {
+                org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.remove(living.getUniqueId());
+            }
+        }
+    }
+
+    /** 참격 진행 방향으로 엔티티를 밀어냄. 약간의 랜덤 방향 포함. */
+    private void applyKnockback(Entity e,Double power) {
+        double strength = ((e instanceof LivingEntity) ? 0.1 : 0.35)*(1+power/10);
+        Vector kick = fireDirection.clone().multiply(strength);
+        kick.add(new Vector(
+                (Math.random() - 0.5) * 0.08,
+                (Math.random() - 0.5) * 0.08,
+                (Math.random() - 0.5) * 0.08
+        ));
+        e.setVelocity(e.getVelocity().add(kick));
+    }
+
+    /**
+     * 비-LivingEntity를 power 비례 확률로 파괴.
+     * 경험치 orb는 무시. power=100 → 50%, power=0 → 0%.
+     */
+    private void tryDestroyNonLiving(Entity e) {
+        if (e instanceof org.bukkit.entity.ExperienceOrb) return;
+        double chance = (power / 100.0) * 0.5;
+        if (Math.random() < chance) {
+            e.remove();
         }
     }
 

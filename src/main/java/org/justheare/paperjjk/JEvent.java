@@ -156,8 +156,10 @@ public class JEvent implements Listener {
 
         if (victim == null) {
             // 일반 몹(비-JEntity) — 술식 onAttackMob 발동 (vanilla 데미지는 그대로)
-            // mobBonusDamageInProgress 가드: onAttackMob 내 mob.damage() 재귀 방지
+            // mobBonusDamageInProgress: onAttackMob 내 mob.damage() 재귀 방지
+            // skillDamageInProgress: 스킬 데미지가 이 이벤트를 유발한 경우 onAttackMob 차단
             if (mobBonusDamageInProgress.contains(damagee.getUniqueId())) return;
+            if (JEntityManager.skillDamageInProgress.contains(damagee.getUniqueId())) return;
 
             if (event.getDamager() instanceof Player p && damagee instanceof LivingEntity mob) {
                 JEntity jAttacker = JEntityManager.instance.get(p.getUniqueId());

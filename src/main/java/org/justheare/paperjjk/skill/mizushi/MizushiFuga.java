@@ -256,7 +256,12 @@ public class MizushiFuga extends ActiveSkill {
             target.receiveDamage(new DamageInfo(caster, DamageType.CURSED,
                     output * 100, "mizushi_fuga", sureHit, !sureHit));
         } else {
-            living.damage(DamageInfo.outputToDamage(output * 100), caster.getLivingEntity());
+            org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.add(living.getUniqueId());
+            try {
+                living.damage(DamageInfo.outputToDamage(output * 100), caster.getLivingEntity());
+            } finally {
+                org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.remove(living.getUniqueId());
+            }
         }
     }
 
