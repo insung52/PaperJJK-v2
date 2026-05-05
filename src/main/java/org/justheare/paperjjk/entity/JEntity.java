@@ -157,10 +157,10 @@ public abstract class JEntity {
 
         // [CE-LOG] 충전 중일 때만 출력
         if (totalDrained > 0) {
-            org.justheare.paperjjk.PaperJJK.log(String.format(
-                "[CE] CE %.1f → %.1f (소모 %.1f | maxOut=%.1f | weight=%.1f | perUnit=%.1f)",
-                ceBefore, cursedEnergy.getCurrent(), totalDrained,
-                maxOutput, totalWeight, perUnit));
+            //org.justheare.paperjjk.PaperJJK.log(String.format(
+            //    "[CE] CE %.1f → %.1f (소모 %.1f | maxOut=%.1f | weight=%.1f | perUnit=%.1f)",
+            //    ceBefore, cursedEnergy.getCurrent(), totalDrained,
+            //    maxOutput, totalWeight, perUnit));
         }
     }
 

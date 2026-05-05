@@ -33,7 +33,7 @@ import java.util.List;
 public class InfinityPassive extends ActiveSkill {
 
     /** 충전 CE → 파워 변환 스케일. 튜닝용. */
-    private static final double POWER_SCALE = 20.0;
+    private static final double POWER_SCALE = 2000.0;
 
     /** 기본 활성 파워 (충전 없이도 항상 유지) */
     private static final double BASE_POWER = 1.0;

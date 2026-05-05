@@ -8,6 +8,7 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.util.Vector;
 import org.bukkit.Location;
+import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
 import org.justheare.paperjjk.entity.JEntity;
@@ -33,7 +34,7 @@ public class InfinityAo extends ActiveSkill {
     // ── 상수 ──────────────────────────────────────────────────────────────
 
     /** 충전 CE → 파워 변환 스케일. grade3 풀충전≈2000CE → 파워≈100. 튜닝용. */
-    private static final double POWER_SCALE = 20000.0;
+    private static final double POWER_SCALE = 10000.0;
 
     /** 브로드캐스트 가시 거리 (블록) */
     private static final double VISUAL_RANGE = 1000.0;
@@ -118,8 +119,8 @@ public class InfinityAo extends ActiveSkill {
 
     /** 현재 충전 세션의 파워 추정치 (사운드·SYNC용). chargeBuffer 기반. */
     private double currentPowerEstimate() {
-        double chargePower = chargeBuffer / POWER_SCALE;
-        return isRecharging ? Math.min(100, remainingPower + chargePower) : chargePower;
+        double efficiency    = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        return chargeBuffer * efficiency / POWER_SCALE;
     }
 
     // ── 생명주기 ──────────────────────────────────────────────────────────
@@ -131,7 +132,15 @@ public class InfinityAo extends ActiveSkill {
 
         chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 100.0;
         //chargeDurationTicks++;
-
+        /*double efficiency    = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        double chargedPower  = chargeBuffer * efficiency / POWER_SCALE;
+        PaperJJK.log(String.format(
+                "max : %.2f remaining : %.2f charged : %.2f estimate : %.2f",
+                chargeBufferMax,
+                remainingPower,
+                chargedPower,
+                currentPowerEstimate()
+        ));*/
         // 시선 추적 (고정이 아닌 경우): 부드럽게 이동
         if (!fixed) {
             smoothMoveToward(gazeLocation(p));
@@ -167,10 +176,12 @@ public class InfinityAo extends ActiveSkill {
         double ep = isRecharging
                 ? currentPowerEstimate()              // 재충전: 기존 remainingPower + 이번 충전분
                 : chargeBuffer / POWER_SCALE;         // 첫 충전: 지금까지 쌓인 양만
-        aoEntityLogic(p, ep);
-        aoBlockLogic(ep);
 
         if (isRecharging) {
+            if(ep>0){
+                aoEntityLogic(p, ep);
+                aoBlockLogic(ep);
+            }
             if (syncTick == 0) {
                 aoLocation.getWorld().playSound(aoLocation, Sound.ENTITY_ENDER_DRAGON_FLAP,
                         (float) (ep / 10.0), 0.8f);
@@ -192,7 +203,7 @@ public class InfinityAo extends ActiveSkill {
         double chargedPower  = chargeBuffer * efficiency / POWER_SCALE;
 
         if (isRecharging) {
-            remainingPower = remainingPower + chargedPower;
+            remainingPower = Math.max(0.1, chargedPower);
             isRecharging = false;
         } else {
             remainingPower = Math.max(0.1, chargedPower);
@@ -203,7 +214,7 @@ public class InfinityAo extends ActiveSkill {
         syncTick = 0;
 
         // 충전 완료 사운드
-        aoLocation.getWorld().playSound(aoLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
+        //aoLocation.getWorld().playSound(aoLocation, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.5f);
 
         // 최종 파워로 SYNC
         JPacketSender.broadcastInfinityAoSync(aoLocation, powerToStrength(remainingPower), uniqueId, VISUAL_RANGE);
@@ -219,6 +230,8 @@ public class InfinityAo extends ActiveSkill {
         //chargeDurationTicks = 0;
         chargeSoundTick = 0;
         syncTick = 0;
+        double efficiency    = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        chargeBuffer = remainingPower * POWER_SCALE / efficiency;
         super.startRecharging(); // phase = CHARGING, chargeBuffer = 0
     }
 
@@ -226,32 +239,42 @@ public class InfinityAo extends ActiveSkill {
     protected void onActiveTick() {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
-
         if (remainingPower <= 0) end();
+        else {
+            /*
+            double efficiency    = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+            double chargedPower  = chargeBuffer * efficiency / POWER_SCALE;
+            PaperJJK.log(String.format(
+                    "max : %.2f remaining : %.2f charged : %.2f estimate : %.2f",
+                    chargeBufferMax,
+                    remainingPower,
+                    chargedPower,
+                    currentPowerEstimate()
+            ));*/
+            // 시선 추적 (고정이 아닌 경우): 부드럽게 이동
+            if (!fixed) {
+                smoothMoveToward(gazeLocation(p));
+            }
 
-        // 시선 추적 (고정이 아닌 경우): 부드럽게 이동
-        if (!fixed) {
-            smoothMoveToward(gazeLocation(p));
+            // 발동 중 파티클
+            Particle.DustOptions dust = new Particle.DustOptions(Color.BLUE,
+                    (float) (Math.pow(remainingPower, 0.5) / 7));
+            aoLocation.getWorld().spawnParticle(Particle.DUST, aoLocation, 1,
+                    0.02, 0.02, 0.02, 0.5, dust, true);
+
+            aoEntityLogic(p, remainingPower);
+            aoBlockLogic(remainingPower);
+
+            // 파워 감소 + SYNC
+            if (++syncTick % SYNC_INTERVAL == 0) {
+                remainingPower--;
+                JPacketSender.broadcastInfinityAoSync(aoLocation, powerToStrength(remainingPower), uniqueId, VISUAL_RANGE);
+                aoLocation.getWorld().playSound(aoLocation, Sound.ENTITY_ENDER_DRAGON_FLAP,
+                        (float) (remainingPower / 10.0), 0.8f);
+                syncTick = 0;
+            }
+
         }
-
-        // 발동 중 파티클
-        Particle.DustOptions dust = new Particle.DustOptions(Color.BLUE,
-                (float) (Math.pow(remainingPower, 0.5) / 7));
-        aoLocation.getWorld().spawnParticle(Particle.DUST, aoLocation, 1,
-                0.02, 0.02, 0.02, 0.5, dust, true);
-
-        // 파워 감소 + SYNC
-        if (++syncTick % SYNC_INTERVAL == 0) {
-            remainingPower--;
-            JPacketSender.broadcastInfinityAoSync(aoLocation, powerToStrength(remainingPower), uniqueId, VISUAL_RANGE);
-            aoLocation.getWorld().playSound(aoLocation, Sound.ENTITY_ENDER_DRAGON_FLAP,
-                    (float) (remainingPower / 10.0), 0.8f);
-            syncTick = 0;
-        }
-        aoEntityLogic(p, remainingPower);
-        aoBlockLogic(remainingPower);
-
-
     }
 
     @Override
@@ -379,7 +402,8 @@ public class InfinityAo extends ActiveSkill {
     // ── 파티클 유틸 ───────────────────────────────────────────────────────
 
     private void spawnChargingParticles() {
-        double cp = Math.max(1.0, chargeDurationTicks * POWER_PER_CHARGE_TICK);
+        //double cp = Math.max(1.0, chargeDurationTicks * POWER_PER_CHARGE_TICK);
+        double cp = currentPowerEstimate()*0.01;
         Particle.DustOptions dust = new Particle.DustOptions(Color.BLUE, 0.2F);
         aoLocation.getWorld().spawnParticle(Particle.DUST, aoLocation,
                 (int) Math.pow(cp, 0.8),
@@ -418,14 +442,13 @@ public class InfinityAo extends ActiveSkill {
         // chargeBufferMax = maxOutput * 100 (단독 100틱 충전량, onChargingTick에서 매틱 갱신)
         // 재충전 시 기존 remainingPower도 CE 단위로 합산 → 게이지가 0에서 시작하지 않음
         double cap = chargeBufferMax > 0 ? chargeBufferMax : 1;
+        double efficiency    = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
         return switch (getPhase()) {
             case CHARGING -> {
-                double ce = isRecharging
-                        ? remainingPower * POWER_SCALE + chargeBuffer
-                        : chargeBuffer;
+                double ce = chargeBuffer;
                 yield (float) Math.min(1.0, ce / cap);
             }
-            case ACTIVE -> (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / cap));
+            case ACTIVE -> (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / efficiency / cap));
             case ENDED  -> 0.0f;
         };
     }

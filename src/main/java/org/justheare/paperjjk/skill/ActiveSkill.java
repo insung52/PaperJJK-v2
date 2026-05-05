@@ -117,7 +117,7 @@ public abstract class ActiveSkill implements SkillExecution {
 
     public void startRecharging() {
         if (phase == SkillPhase.ACTIVE) {
-            chargeBuffer = 0;
+            //chargeBuffer = 0;
             phase = SkillPhase.CHARGING;
             recharging = true;
         }
