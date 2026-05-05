@@ -82,6 +82,7 @@ public class MizushiFuga extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) return;
         Player p = jp.player;
 
+        chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 100.0;
         chargeTick++;
 
         // 충전 첫 틱: 참격 억제 + 블럭 파괴 중단
@@ -303,7 +304,8 @@ public class MizushiFuga extends ActiveSkill {
     @Override
     public float getGaugePercent() {
         return switch (getPhase()) {
-            case CHARGING -> Math.min(1f, (float) chargeTick / MAX_CHARGE_TICKS);
+            case CHARGING -> chargeBufferMax > 0
+                    ? (float) Math.min(1.0, chargeBuffer / chargeBufferMax) : 0f;
             case ACTIVE -> {
                 if (!launched) yield Math.min(1f, (float)(chargeTick + waitTick) / MIN_CHARGE_TICKS);
                 yield 1f - (float) flightTick / MAX_FLIGHT_TICKS;

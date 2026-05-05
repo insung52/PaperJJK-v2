@@ -59,6 +59,7 @@ public class MizushiKai extends ActiveSkill {
     private float prevPitch;
 
     private double power;
+    private double initialPower = 1.0; // 발사 시 파워 (ACTIVE 게이지 기준)
 
     private Location currentPos;
     private final Set<UUID> hitEntities = new HashSet<>();
@@ -78,6 +79,7 @@ public class MizushiKai extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) return;
         Player p = jp.player;
 
+        chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 100.0;
         chargeTick++;
         prevYaw   = p.getEyeLocation().getYaw();
         prevPitch = p.getEyeLocation().getPitch();
@@ -103,6 +105,7 @@ public class MizushiKai extends ActiveSkill {
         // 파워 = 충전된 CE / POWER_SCALE × 효율
         double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
         power = Math.max(0.1, chargeBuffer * efficiency / POWER_SCALE);
+        initialPower = power;
 
         fireLocation  = p.getEyeLocation().clone().add((Math.random()-0.5),(Math.random()-0.5),(Math.random()-0.5));
         fireDirection = fireLocation.getDirection().normalize();
@@ -299,8 +302,10 @@ public class MizushiKai extends ActiveSkill {
     @Override
     public float getGaugePercent() {
         return switch (getPhase()) {
-            case CHARGING -> Math.min(1f, (float) chargeTick / MAX_CHARGE_TICKS);
-            case ACTIVE   -> power > 0 ? (float)(power / 100.0) : 0f;
+            case CHARGING -> chargeBufferMax > 0
+                    ? (float) Math.min(1.0, chargeBuffer / chargeBufferMax) : 0f;
+            case ACTIVE   -> initialPower > 0
+                    ? (float) Math.max(0.0, Math.min(1.0, power / initialPower)) : 0f;
             case ENDED    -> 0f;
         };
     }

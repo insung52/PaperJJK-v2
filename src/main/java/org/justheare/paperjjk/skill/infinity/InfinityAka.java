@@ -105,6 +105,7 @@ public class InfinityAka extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) return;
         Player p = jp.player;
 
+        chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 100.0;
         chargeDurationTicks++;
         chargeSoundTick++;
 
@@ -129,10 +130,10 @@ public class InfinityAka extends ActiveSkill {
             syncTick = 0;
         }
 
-        // 충전 사운드
+        // 충전 사운드 — chargeBuffer 기반
         if (chargeSoundTick % CHARGE_SOUND_INTERVAL == 0) {
-            float vol   = (float) (cp / 100.0);
-            float pitch = (float) (cp / 100.0 * 1.5 + 0.5);
+            float vol   = (float) Math.min(1.0, cp / 100.0);
+            float pitch = (float) (Math.min(1.0, cp / 100.0) * 1.5 + 0.5);
             p.getWorld().playSound(p.getLocation(),
                     Sound.BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM, vol, pitch);
         }
@@ -340,9 +341,10 @@ public class InfinityAka extends ActiveSkill {
 
     @Override
     public float getGaugePercent() {
+        double cap = chargeBufferMax > 0 ? chargeBufferMax : 1;
         return switch (getPhase()) {
-            case CHARGING -> (float) Math.min(1.0, chargeBuffer / POWER_SCALE / 100.0);
-            case ACTIVE   -> (float) Math.max(0.0, remainingPower / 100.0);
+            case CHARGING -> (float) Math.min(1.0, chargeBuffer / cap);
+            case ACTIVE   -> (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / cap));
             case ENDED    -> 0.0f;
         };
     }

@@ -70,7 +70,7 @@ public class InfinityAo extends ActiveSkill {
     private double remainingPower = 0;
 
     /** 현재 충전 단계의 경과 틱 수 (파워 계산에 사용) */
-    private int chargeDurationTicks = 0;
+    //private int chargeDurationTicks = 0;
 
     /** AO START 패킷이 클라이언트로 전송된 상태인가 */
     private boolean aoPacketActive = false;
@@ -129,7 +129,8 @@ public class InfinityAo extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) return;
         Player p = jp.player;
 
-        chargeDurationTicks++;
+        chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 100.0;
+        //chargeDurationTicks++;
 
         // 시선 추적 (고정이 아닌 경우): 부드럽게 이동
         if (!fixed) {
@@ -146,38 +147,35 @@ public class InfinityAo extends ActiveSkill {
         // 충전 파티클
         spawnChargingParticles();
 
-        // 충전 사운드 (기존 BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM — 파워에 따라 볼륨/피치 변화)
+        // 충전 사운드 — chargeBuffer 기반 (ACTIVE 중 사운드와 일관성 유지)
         if (++chargeSoundTick % CHARGE_SOUND_INTERVAL == 0) {
             double cp = currentPowerEstimate();
-            float vol   = (float) (cp / 60.0);
-            float pitch = (float) (cp / 100.0 * 1.5 + 0.5);
+            float vol   = (float) Math.min(1.0, cp / 60.0);
+            float pitch = (float) (Math.min(1.0, cp / 100.0) * 1.5 + 0.5);
             aoLocation.getWorld().playSound(aoLocation,
                     Sound.BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM, vol, pitch);
         }
 
-        // AO SYNC: 충전 중 파워 미리보기
+        // AO SYNC: 충전 중 파워 미리보기 — chargeBuffer 기반 (ACTIVE 비주얼과 일관성)
         if (++syncTick % SYNC_INTERVAL == 0) {
             double previewPower = Math.min(100, currentPowerEstimate());
             JPacketSender.broadcastInfinityAoSync(aoLocation, powerToStrength(previewPower), uniqueId, VISUAL_RANGE);
             syncTick = 0;
         }
 
-        // 재충전 중: 발동 효과 계속 실행 (파워는 현재 예상치 기준)
-        if (isRecharging) {
-            double ep = currentPowerEstimate();
-            aoEntityLogic(p, ep);
-            aoBlockLogic(ep);
+        // 충전 중 항상 발동 효과 실행 (첫 충전 + 재충전 모두)
+        double ep = isRecharging
+                ? currentPowerEstimate()              // 재충전: 기존 remainingPower + 이번 충전분
+                : chargeBuffer / POWER_SCALE;         // 첫 충전: 지금까지 쌓인 양만
+        aoEntityLogic(p, ep);
+        aoBlockLogic(ep);
 
-            // 펄럭거리는 소리 — 재충전 중 파워에 비례한 볼륨
+        if (isRecharging) {
             if (syncTick == 0) {
                 aoLocation.getWorld().playSound(aoLocation, Sound.ENTITY_ENDER_DRAGON_FLAP,
                         (float) (ep / 10.0), 0.8f);
             }
-
-            // 재충전 중에는 파워 감소 없음 (충전으로 보충 중)
-            if (remainingPower <= 0) {
-                end();
-            }
+            if (remainingPower <= 0) end();
         }
     }
 
@@ -200,7 +198,7 @@ public class InfinityAo extends ActiveSkill {
             remainingPower = Math.max(0.1, chargedPower);
         }
 
-        chargeDurationTicks = 0;
+        //chargeDurationTicks = 0;
         chargeSoundTick = 0;
         syncTick = 0;
 
@@ -218,7 +216,7 @@ public class InfinityAo extends ActiveSkill {
     @Override
     public void startRecharging() {
         isRecharging = true;
-        chargeDurationTicks = 0;
+        //chargeDurationTicks = 0;
         chargeSoundTick = 0;
         syncTick = 0;
         super.startRecharging(); // phase = CHARGING, chargeBuffer = 0
@@ -417,10 +415,18 @@ public class InfinityAo extends ActiveSkill {
      */
     @Override
     public float getGaugePercent() {
+        // chargeBufferMax = maxOutput * 100 (단독 100틱 충전량, onChargingTick에서 매틱 갱신)
+        // 재충전 시 기존 remainingPower도 CE 단위로 합산 → 게이지가 0에서 시작하지 않음
+        double cap = chargeBufferMax > 0 ? chargeBufferMax : 1;
         return switch (getPhase()) {
-            case CHARGING -> (float) Math.min(1.0, currentPowerEstimate() / 100.0);
-            case ACTIVE   -> (float) Math.max(0.0, remainingPower / 100.0);
-            case ENDED    -> 0.0f;
+            case CHARGING -> {
+                double ce = isRecharging
+                        ? remainingPower * POWER_SCALE + chargeBuffer
+                        : chargeBuffer;
+                yield (float) Math.min(1.0, ce / cap);
+            }
+            case ACTIVE -> (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / cap));
+            case ENDED  -> 0.0f;
         };
     }
 
