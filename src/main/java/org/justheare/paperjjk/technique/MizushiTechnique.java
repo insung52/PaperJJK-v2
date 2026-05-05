@@ -107,8 +107,8 @@ public class MizushiTechnique extends Technique {
             //world.spawnParticle(Particle.ELECTRIC_SPARK, sliceLoc, 1, 0, 0, 0, 0, null, true);
         }*/
 
-        world.playSound(center, Sound.ENTITY_PLAYER_ATTACK_SWEEP,
-                SoundCategory.PLAYERS, 2f, 1.2f);
+        world.playSound(center, Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR,
+                SoundCategory.PLAYERS, 1f, 1.2f);
     }
 
     /** 팔 파워 1당 흡수 가능한 attackOutput 양 */

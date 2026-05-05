@@ -172,7 +172,7 @@ public class MizushiKai extends ActiveSkill {
                         p.getWorld().playSound(sliceLoc, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK,
                                 SoundCategory.PLAYERS, 4f, 0.6f);
                     } else {
-                        tryDestroyNonLiving(e);
+                        //tryDestroyNonLiving(e);
                     }
                 }
 

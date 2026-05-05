@@ -160,6 +160,8 @@ public class JEvent implements Listener {
             // skillDamageInProgress: 스킬 데미지가 이 이벤트를 유발한 경우 onAttackMob 차단
             if (mobBonusDamageInProgress.contains(damagee.getUniqueId())) return;
             if (JEntityManager.skillDamageInProgress.contains(damagee.getUniqueId())) return;
+            // 타격 강화(onAttackMob)는 일반 공격(ENTITY_ATTACK)에만 — 폭발 등 간접 피해 제외
+            if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK) return;
 
             if (event.getDamager() instanceof Player p && damagee instanceof LivingEntity mob) {
                 JEntity jAttacker = JEntityManager.instance.get(p.getUniqueId());
@@ -185,12 +187,22 @@ public class JEvent implements Listener {
             return;
         }
 
-        // 외부 물리 타격 → DamagePipeline으로 라우팅
+        // DamagePipeline 라우팅
         event.setCancelled(true);
 
         Entity damager = event.getDamager();
         JEntity attacker = (damager instanceof LivingEntity le)
                 ? JEntityManager.instance.get(le.getUniqueId()) : null;
+
+        // 플레이어 발생 폭발 → EXPLOSION 타입으로 라우팅 (데미지 적용, onAttack 미발동)
+        // 크리퍼 등 외부 폭발 → PHYSICAL 라우팅 (attacker==null → onAttack 미발동)
+        if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK
+                && event.getDamager() instanceof Player) {
+            double attackOutput = DamageInfo.damageToOutput(event.getDamage());
+            DamageInfo info = new DamageInfo(attacker, DamageType.EXPLOSION, attackOutput, "", false, true);
+            victim.receiveDamage(info);
+            return;
+        }
 
         double attackOutput = DamageInfo.damageToOutput(event.getDamage());
         DamageInfo info = DamageInfo.physicalHit(attacker, attackOutput);

@@ -57,9 +57,9 @@ public class TechniqueFactory {
      */
     public static int defaultEfficiencyLevel(String name) {
         return switch (name.toLowerCase()) {
-            case "infinity"        -> 100;
-            case "mizushi"         -> 90;
-            case "mahoraga"        -> 60;
+            case "infinity"        -> 50;
+            case "mizushi"         -> 40;
+            case "mahoraga"        -> 30;
             case "physical_gifted" -> 0;
             default                -> 15;
         };

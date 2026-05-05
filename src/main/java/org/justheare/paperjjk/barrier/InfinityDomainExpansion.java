@@ -12,7 +12,7 @@ import org.justheare.paperjjk.network.PacketIds;
 /**
  * 무량공처(Unlimited Void) 영역전개.
  *
- * - 결계 재질: BARRIER
+ * - 결계 재질: OBSIDIAN
  * - 반경: 30블록
  * - EXPANDING: 200블록/틱 점진 구 생성 → 완성 시 ACTIVE
  * - ACTIVE: InfinityInnateTerritory 에 필중 위임
@@ -22,7 +22,7 @@ public class InfinityDomainExpansion extends DomainExpansion {
 
     private static final int      RANGE         = 30;
     private static final double   BARRIER_LEVEL = 9.0;
-    private static final Material BARRIER_MAT   = Material.BARRIER;
+    private static final Material BARRIER_MAT   = Material.OBSIDIAN;
     private static final int      BLOCKS_PER_TICK = 200;
 
     private final DomainBlockBuilder builder = new DomainBlockBuilder();

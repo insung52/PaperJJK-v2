@@ -35,13 +35,13 @@ public class BlackFlashEffect {
      */
     public static void trigger(LivingEntity attacker, LivingEntity victim, double bonus) {
         Location hitLoc    = victim.getLocation().add(0, victim.getHeight() / 2.0, 0);
-        Location explosionLoc = victim.getLocation().add(0, 1.0, 0);
-
+        Location explosionLoc = victim.getLocation().add(0, 2, 0);
         // ── 폭발 (블록 파괴 없음, 데미지 없음 — 이펙트 전용) ─────────────
         // power = hpDamage / 10, 최대 3.0 (TNT 급)
         float hpDamage = (float) DamageInfo.outputToDamage(bonus);
         float power    = Math.max(0.3f, Math.min(3.0f, hpDamage / 10.0f));
-        explosionLoc.getWorld().createExplosion(explosionLoc, power, false, true, attacker);
+        victim.setVelocity((attacker.getEyeLocation().getDirection().multiply(power*3.0+2)));
+        explosionLoc.getWorld().createExplosion(explosionLoc, (float) (power*0.5), false, true, attacker);
 
         // ── 틱 0: 즉시 이펙트 ─────────────────────────────────────────────
         attacker.getWorld().playSound(hitLoc, Sound.ENTITY_WARDEN_SONIC_BOOM,
@@ -112,7 +112,7 @@ public class BlackFlashEffect {
      */
     private static void spawnAttackerEffect(LivingEntity attacker, int tick) {
         double spread = 0.3 + tick * 0.12;
-        int count     = Math.max(5, 30 - tick * 3);
+        int count     = Math.max(5, 30 - tick * 3)/10;
 
         Location aLoc = attacker.getLocation().add(0, attacker.getHeight() / 2.0, 0);
 

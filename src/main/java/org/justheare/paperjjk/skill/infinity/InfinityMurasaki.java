@@ -214,8 +214,8 @@ public class InfinityMurasaki extends ActiveSkill {
         for (int r = 0; r < STEPS_PER_TICK; r++) {
             murasakiLocation.add(direction.clone().multiply(STEP_SIZE));
 
-            float explodeSize = (float)(Math.pow(power, 0.5) + 1);
-            murasakiLocation.createExplosion(p, explodeSize, false, true);
+            // 반 구 껍질 형태로 블록 파괴 (진행 방향 기준 전면 반구)
+            breakHemisphereShell(murasakiLocation, power);
 
             double searchR = 1 + Math.pow(power, 0.5);
             List<Entity> nearby = (List<Entity>) murasakiLocation.getNearbyEntities(
@@ -399,6 +399,48 @@ public class InfinityMurasaki extends ActiveSkill {
             if (dot > bestDot) { bestDot = dot; best = k; }
         }
         return best;
+    }
+
+    /**
+     * 진행 방향을 전면으로 하는 반 구 껍질(theta: 0 → π/2) 위의 각 점에서 블록 파괴 시도.
+     *
+     * 구 좌표계 → direction 기준 직교좌표 변환:
+     *   local(lx, ly, lz) = R·sinθ·cosφ·right + R·sinθ·sinφ·up + R·cosθ·fwd
+     *
+     * radius  = sqrt(power)
+     * step    = π / (radius × 3.6)  (구 플러그인과 동일)
+     * phiStep = step / sinθ × 0.8   (위도별 경도 간격 균등화)
+     */
+    private void breakHemisphereShell(Location center, double power) {
+        double radius = Math.pow(power, 0.5);
+        double step   = Math.PI / (radius * 7.0);
+
+        // direction 기준 직교 좌표계 구성
+        Vector fwd = direction.clone().normalize();
+        Vector ref = (Math.abs(fwd.getY()) < 0.9)
+                ? new Vector(0, 1, 0) : new Vector(1, 0, 0);
+        Vector rgt = fwd.clone().crossProduct(ref).normalize();
+        Vector up  = rgt.clone().crossProduct(fwd).normalize();
+
+        for (double theta = 0; theta < Math.PI / 2 + step * 0.5; theta += step) {
+            double sinT    = Math.sin(theta);
+            double cosT    = Math.cos(theta);
+            // theta=0(정면)에서 phi step이 발산하지 않도록 보호
+            double phiStep = (sinT < 0.01) ? Math.PI * 2 : step / sinT * 0.8;
+
+            for (double phi = 0; phi < Math.PI * 2; phi += phiStep) {
+                double lx = radius * sinT * Math.cos(phi);
+                double ly = radius * sinT * Math.sin(phi);
+                double lz = radius * cosT;
+
+                Location blockLoc = center.clone().add(
+                        rgt.clone().multiply(lx)
+                           .add(up.clone().multiply(ly))
+                           .add(fwd.clone().multiply(lz)));
+
+                tryBreakBlock(blockLoc, (int) power);
+            }
+        }
     }
 
     /**

@@ -259,7 +259,12 @@ public class MizushiDomainExpansion extends DomainExpansion {
                 if (target != null) {
                     target.receiveDamage(DamageInfo.domainSureHit(caster, damage, "mizushi_fuga_explosion"));
                 } else {
-                    le.damage(DamageInfo.outputToDamage(damage), caster.getLivingEntity());
+                    org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.add(le.getUniqueId());
+                    try {
+                        le.damage(DamageInfo.outputToDamage(damage), caster.getLivingEntity());
+                    } finally {
+                        org.justheare.paperjjk.network.JEntityManager.skillDamageInProgress.remove(le.getUniqueId());
+                    }
                 }
             }
         }
