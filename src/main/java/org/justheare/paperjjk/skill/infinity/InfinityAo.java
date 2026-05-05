@@ -32,8 +32,8 @@ public class InfinityAo extends ActiveSkill {
 
     // ── 상수 ──────────────────────────────────────────────────────────────
 
-    /** 틱당 주력 충전 요청량 (CE 시스템과 연동) */
-    private static final double PER_TICK_CHARGE = 5.0;
+    /** 충전 CE → 파워 변환 스케일. grade3 풀충전≈2000CE → 파워≈100. 튜닝용. */
+    private static final double POWER_SCALE = 20000.0;
 
     /** 브로드캐스트 가시 거리 (블록) */
     private static final double VISUAL_RANGE = 1000.0;
@@ -89,7 +89,7 @@ public class InfinityAo extends ActiveSkill {
     // ── 생성자 ────────────────────────────────────────────────────────────
 
     public InfinityAo(JEntity caster) {
-        super(caster, PER_TICK_CHARGE);
+        super(caster);
         this.uniqueId = "AO_" + System.nanoTime();
         initAoLocation();
     }
@@ -116,15 +116,10 @@ public class InfinityAo extends ActiveSkill {
         }
     }
 
-    /** 현재 충전 단계의 파워 추정치 (사운드 볼륨/피치 계산용). CE 비율 반영. */
+    /** 현재 충전 세션의 파워 추정치 (사운드·SYNC용). chargeBuffer 기반. */
     private double currentPowerEstimate() {
-        double chargePower = chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio();
+        double chargePower = chargeBuffer / POWER_SCALE;
         return isRecharging ? Math.min(100, remainingPower + chargePower) : chargePower;
-    }
-
-    private double ceRatio() {
-        double max = caster.cursedEnergy.getMax();
-        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
     }
 
     // ── 생명주기 ──────────────────────────────────────────────────────────
@@ -195,15 +190,14 @@ public class InfinityAo extends ActiveSkill {
             smoothMoveToward(gazeLocation(p));
         }
 
-        double chargedPower = Math.min(100.0, chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio());
+        double efficiency    = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        double chargedPower  = chargeBuffer * efficiency / POWER_SCALE;
 
         if (isRecharging) {
-            // 재충전 완료: 현재 파워에 추가
-            remainingPower = Math.min(100.0, remainingPower + chargedPower);
+            remainingPower = remainingPower + chargedPower;
             isRecharging = false;
         } else {
-            // 첫 충전 완료: 충전량으로 초기 파워 결정
-            remainingPower = Math.max(1.0, chargedPower);
+            remainingPower = Math.max(0.1, chargedPower);
         }
 
         chargeDurationTicks = 0;
@@ -227,13 +221,15 @@ public class InfinityAo extends ActiveSkill {
         chargeDurationTicks = 0;
         chargeSoundTick = 0;
         syncTick = 0;
-        super.startRecharging(); // phase = CHARGING, accumulatedCharge = 0
+        super.startRecharging(); // phase = CHARGING, chargeBuffer = 0
     }
 
     @Override
     protected void onActiveTick() {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
+
+        if (remainingPower <= 0) end();
 
         // 시선 추적 (고정이 아닌 경우): 부드럽게 이동
         if (!fixed) {
@@ -254,11 +250,10 @@ public class InfinityAo extends ActiveSkill {
                     (float) (remainingPower / 10.0), 0.8f);
             syncTick = 0;
         }
-
         aoEntityLogic(p, remainingPower);
         aoBlockLogic(remainingPower);
 
-        if (remainingPower <= 0) end();
+
     }
 
     @Override

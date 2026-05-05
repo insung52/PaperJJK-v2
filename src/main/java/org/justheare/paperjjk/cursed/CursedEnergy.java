@@ -1,7 +1,5 @@
 package org.justheare.paperjjk.cursed;
 
-import java.util.List;
-
 /**
  * 주력(저주 에너지) 상태를 담당하는 클래스.
  * 기존 Jobject의 max_curseenergy, curseenergy, max_cursecurrent, cursecurrent 등을 통합.
@@ -105,34 +103,14 @@ public class CursedEnergy {
         current = Math.min(max, current + BASE_REGEN + Math.pow(max,0.3) + max/100000000);
     }
 
-    // ── 충전 분산 ─────────────────────────────────────────────────────────
+    // ── CE 차감 (분배 결과 적용) ──────────────────────────────────────────
 
     /**
-     * 동시에 충전 중인 스킬들에게 출력을 비례 분배.
-     * 매 틱 JEntity.onTick() 에서 호출.
-     *
-     * totalRequested <= maxOutput : ratio = 1.0 (전부 충전)
-     * totalRequested >  maxOutput : ratio = maxOutput / totalRequested (비례 감소)
-     *
-     * @param requests     충전 중인 스킬들의 요청 목록
-     * @param healthPercent 현재 체력 비율 (0.0 ~ 1.0)
+     * 스킬들이 실제로 흡수한 CE 만큼 풀에서 차감.
+     * JEntity.drainAndDistribute() 에서 호출.
      */
-    public void distributeOutput(List<ChargingRequest> requests, double healthPercent) {
-        if (requests.isEmpty()) return;
-
-        double maxOutput = getMaxOutput(healthPercent);
-        double totalRequested = 0;
-        for (ChargingRequest req : requests) {
-            totalRequested += req.perTickRequest;
-        }
-
-        double ratio = (totalRequested > 0) ? Math.min(1.0, maxOutput / totalRequested) : 0;
-        double actualTotal = 0;
-        for (ChargingRequest req : requests) {
-            req.actualCharged = req.perTickRequest * ratio;
-            actualTotal += req.actualCharged;
-        }
-        forceConsume(actualTotal);
+    public void drain(double amount) {
+        current = Math.max(0, current - amount);
     }
 
     // ── 내부 수치 조정 (관리자 명령어 등) ───────────────────────────────────

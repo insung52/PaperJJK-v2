@@ -37,15 +37,16 @@ public class MizushiKai extends ActiveSkill {
     private static final Particle.DustOptions DUST_CHARGE =
             new Particle.DustOptions(Color.RED, 0.3f);
 
-    /** 100틱 충전 = 최대 파워 */
     private static final int    MAX_CHARGE_TICKS  = 100;
+    /** 충전 CE → 파워 변환 스케일. grade3 풀충전≈2000CE → 파워≈100. 튜닝용. */
+    private static final double POWER_SCALE       = 500.0;
     private static final int    STEPS_PER_TICK    = 10;
     private static final double STEP_DIST         = 0.4;
     private static final int    MAX_ACTIVE_TICKS  = 18;
 
     // ── 충전 추적 (게이지용) ──────────────────────────────────────────────
 
-    /** 충전 경과 틱 (getGaugePercent 에서 사용) */
+    /** 충전 경과 틱 (HUD 게이지용) */
     private int chargeTick = 0;
 
     // ── 발동 상태 ─────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ public class MizushiKai extends ActiveSkill {
     private int effectSentTick = 0;
 
     public MizushiKai(JEntity caster) {
-        super(caster, 4.0);
+        super(caster);
     }
 
     // ── 충전 중 ───────────────────────────────────────────────────────────
@@ -99,8 +100,9 @@ public class MizushiKai extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
 
-        // chargedOutput: CE 누적량. 게이지 비율과 같은 방향으로 파워 환산
-        power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0);
+        // 파워 = 충전된 CE / POWER_SCALE × 효율
+        double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        power = Math.max(0.1, chargeBuffer * efficiency / POWER_SCALE);
 
         fireLocation  = p.getEyeLocation().clone().add((Math.random()-0.5),(Math.random()-0.5),(Math.random()-0.5));
         fireDirection = fireLocation.getDirection().normalize();
@@ -139,7 +141,7 @@ public class MizushiKai extends ActiveSkill {
         if (power <= 0 || activeTick >= MAX_ACTIVE_TICKS) { end(); return; }
         activeTick++;
 
-        double halfWidth = (power / 10.0) * ((double)(Math.pow(activeTick,1.4) + 1) / 5.0) + 1.0;
+        double halfWidth = (Math.pow(power,0.6) / 10.0) * ((double)(Math.pow(activeTick,1.6) + 1) / 5.0) + 1.0;
 
         if (!soundPlayed) {
             soundPlayed = true;
@@ -223,7 +225,8 @@ public class MizushiKai extends ActiveSkill {
         DamageInfo.setnodamagetick(living);
         JEntity target = JEntityManager.instance != null
                 ? JEntityManager.instance.get(living.getUniqueId()) : null;
-        double output = Math.pow(caster.cursedEnergy.getMax(), 0.11) + power - 3;
+        double output = power;
+
         if (target != null) {
             target.receiveDamage(DamageInfo.skillHit(caster, DamageType.CURSED,
                     output * 100, "mizushi_kai"));
@@ -259,11 +262,6 @@ public class MizushiKai extends ActiveSkill {
         if (Math.random() < chance) {
             e.remove();
         }
-    }
-
-    private double ceRatio() {
-        double max = caster.cursedEnergy.getMax();
-        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
     }
 
     private static Vector perpendicularTo(Vector v) {

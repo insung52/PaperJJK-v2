@@ -166,8 +166,9 @@ public class InfinityMurasaki extends ActiveSkill {
      */
     public InfinityMurasaki(JEntity caster, Location location, Vector direction,
                              double power, boolean unlimitedMode) {
-        super(caster, 0);
+        super(caster);
         this.phase = SkillPhase.ACTIVE;  // 충전 단계 없이 즉시 발동
+        this.chargeBuffer = power;       // 외부에서 파워 직접 주입
 
         this.murasakiLocation = location;
         this.direction        = direction.normalize();

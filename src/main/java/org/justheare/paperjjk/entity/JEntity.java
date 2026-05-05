@@ -3,7 +3,6 @@ package org.justheare.paperjjk.entity;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.justheare.paperjjk.cursed.BlackFlashState;
-import org.justheare.paperjjk.cursed.ChargingRequest;
 import org.justheare.paperjjk.cursed.CursedEnergy;
 import org.justheare.paperjjk.cursed.ReverseOutput;
 import org.justheare.paperjjk.damage.DamageInfo;
@@ -100,12 +99,8 @@ public abstract class JEntity {
         // 주력 자연 회복
         cursedEnergy.regen();
 
-        // 충전 중인 스킬에 출력 분배
-        List<ChargingRequest> requests = buildChargingRequests();
-        cursedEnergy.distributeOutput(requests, getHealthPercent());
-        for (ChargingRequest req : requests) {
-            req.chargeCallback.accept(req.actualCharged);
-        }
+        // CE → 충전 중인 스킬/신체강화에 분배
+        drainAndDistribute();
 
         // 신체강화 틱
         bodyReinforcement.onTick();
@@ -132,23 +127,51 @@ public abstract class JEntity {
         }
     }
 
-    /** 충전 중인 스킬들로부터 ChargingRequest 목록 생성 */
-    protected List<ChargingRequest> buildChargingRequests() {
-        List<ChargingRequest> requests = new ArrayList<>();
-        for (ActiveSkill skill : activeSkills) {
-            if (skill.isCharging()) {
-                requests.add(new ChargingRequest(skill, skill.getPerTickChargeRequest()));
-            }
+    /**
+     * maxOutput 을 충전 중인 스킬들에게 가중치 비례 분배.
+     * 각 스킬이 흡수한 CE 합산 → cursedEnergy.drain() 으로 풀 차감 (에너지 보존).
+     */
+    private void drainAndDistribute() {
+        double totalWeight = 0;
+        for (ActiveSkill s : activeSkills) {
+            if (s.isCharging()) totalWeight += s.getChargeWeight();
         }
-        addAdditionalChargeRequests(requests);
-        return requests;
+        totalWeight += getAdditionalChargeWeight();
+        if (totalWeight <= 0) return;
+
+        double ceBefore  = cursedEnergy.getCurrent();
+        double maxOutput = cursedEnergy.getMaxOutput(1.0);
+        double perUnit   = maxOutput / totalWeight;
+        double totalDrained = 0;
+
+        for (ActiveSkill s : activeSkills) {
+            if (!s.isCharging()) continue;
+            double share  = perUnit * s.getChargeWeight();
+            double actual = Math.min(share, s.getChargeBufferSpace());
+            s.addToBuffer(actual);
+            totalDrained += actual;
+        }
+
+        totalDrained += distributeAdditional(perUnit);
+        cursedEnergy.drain(totalDrained);
+
+        // [CE-LOG] 충전 중일 때만 출력
+        if (totalDrained > 0) {
+            org.justheare.paperjjk.PaperJJK.log(String.format(
+                "[CE] CE %.1f → %.1f (소모 %.1f | maxOut=%.1f | weight=%.1f | perUnit=%.1f)",
+                ceBefore, cursedEnergy.getCurrent(), totalDrained,
+                maxOutput, totalWeight, perUnit));
+        }
     }
 
+    /** 추가 CE 소비자(신체강화 등)의 가중치 합. JPlayer 에서 override. */
+    protected double getAdditionalChargeWeight() { return 0; }
+
     /**
-     * 스킬 외 CE 소비자 등록 훅 (신체강화 등).
-     * 서브클래스(JPlayer)에서 override.
+     * 추가 소비자에게 perUnit 을 분배하고 실제 소모량 반환.
+     * JPlayer 에서 override.
      */
-    protected void addAdditionalChargeRequests(List<ChargingRequest> requests) {}
+    protected double distributeAdditional(double perUnit) { return 0; }
 
     // ── 데미지 ────────────────────────────────────────────────────────────
 

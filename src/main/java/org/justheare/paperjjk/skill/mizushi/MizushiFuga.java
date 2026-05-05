@@ -44,11 +44,14 @@ public class MizushiFuga extends ActiveSkill {
 
     // ── 충전 추적 ─────────────────────────────────────────────────────────
 
+    /** 충전 CE → 파워 변환 스케일. grade3 풀충전≈2000CE → 파워≈100. 튜닝용. */
+    private static final double POWER_SCALE = 500.0 * 10;
+
     /** fuga가 결없영에 명중해 열압력탄이 트리거되었으면 true. onEnd()에서 STOP 패킷 생략. */
     private boolean thermobaricTriggered = false;
 
-    /** 발사 시점의 CE 비율 (0~1). 파워 스케일에 적용. */
-    private double ceRatioAtCharge = 1.0;
+    /** onCharged() 에서 확정된 파워 — 명중/비행 로직에서 사용 */
+    private double fugaPower = 1.0;
 
     /** 충전 시작 시 참격 억제 + 블럭 파괴 중단을 이미 보냈으면 true (중복 방지). */
     private boolean chargeSuppressApplied = false;
@@ -69,7 +72,7 @@ public class MizushiFuga extends ActiveSkill {
     private int      flightTick = 0;
 
     public MizushiFuga(JEntity caster) {
-        super(caster, 4.0);
+        super(caster);
     }
 
     // ── 충전 중 ───────────────────────────────────────────────────────────
@@ -108,9 +111,9 @@ public class MizushiFuga extends ActiveSkill {
             p.getWorld().playSound(eye.clone().add(lVec), Sound.BLOCK_FIRE_AMBIENT,
                     SoundCategory.AMBIENT, 2f, 1f);
         }
-        double power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0 * ceRatio());
+        double chargePreview = chargeBuffer / POWER_SCALE;
         for (double r = -5; r <= 5; r += 0.3) {
-            if (Math.random() * 100 <= power) {
+            if (Math.random() * 100 <= chargePreview) {
                 p.getWorld().spawnParticle(Particle.FLAME,
                         eye.clone()
                            .add(rr.clone().multiply(-0.7))
@@ -132,8 +135,8 @@ public class MizushiFuga extends ActiveSkill {
     @Override
     protected void onCharged() {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
-        ceRatioAtCharge = ceRatio();
-        // 발사 위치 고정 (키 뗀 순간)
+        double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        fugaPower = Math.max(0.1, chargeBuffer * efficiency / POWER_SCALE);
         projectilePos = jp.player.getEyeLocation().clone();
     }
 
@@ -172,9 +175,8 @@ public class MizushiFuga extends ActiveSkill {
             projectileDir.add(new Vector(0, -0.009, 0));
             projectilePos.add(projectileDir);
 
-            double power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0 * ceRatioAtCharge);
             p.getWorld().spawnParticle(Particle.FLAME, projectilePos,
-                    (int)(power / 10.0 + 1), 1, 1, 1, 0, null, true);
+                    (int)(fugaPower / 10.0 + 1), 1, 1, 1, 0, null, true);
 
             // 결없영 범위 내 진입 즉시 폭발 (고정 중심 기준, 3블록 여유)
             if (openDomain != null) {
@@ -218,12 +220,10 @@ public class MizushiFuga extends ActiveSkill {
             }
         }
 
-        double power = Math.max(5, (double) chargeTick / MAX_CHARGE_TICKS * 100.0 * ceRatioAtCharge);
-        float explodeSize = (float)(power / 25.0 + 2);
-
+        float explodeSize = (float)(fugaPower / 25.0 + 2);
         projectilePos.createExplosion(casterPlayer, explodeSize, true, true);
 
-        double searchR = Math.pow(power, 0.3) + 1;
+        double searchR = Math.pow(fugaPower, 0.3) + 1;
         List<Entity> targets = (List<Entity>) projectilePos.getNearbyEntities(searchR, searchR, searchR);
         targets.remove(casterPlayer);
 
@@ -234,12 +234,12 @@ public class MizushiFuga extends ActiveSkill {
 
                 if (hasKai && hasHachi) {
                     DamageInfo.setnodamagetick(living);
-                    applyFugaDamage(living, power * 4.0 / Math.max(1, targets.size()), true);
+                    applyFugaDamage(living, fugaPower * 4.0 / Math.max(1, targets.size()), true);
                     e.setFireTicks(4444);
                     projectilePos.getWorld().spawnParticle(Particle.FLAME, projectilePos,
-                            (int)(power / 3 + 30), 1, 1, 1, 1, null, true);
+                            (int)(fugaPower / 3 + 30), 1, 1, 1, 1, null, true);
                     projectilePos.getWorld().spawnParticle(Particle.LAVA, projectilePos,
-                            (int)(power / 3 + 30), 1, 1, 1, 1, null, true);
+                            (int)(fugaPower / 3 + 30), 1, 1, 1, 1, null, true);
                     projectilePos.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER,
                             projectilePos, 1, 0, 0, 0, 0, null, false);
                 } else {
@@ -283,11 +283,6 @@ public class MizushiFuga extends ActiveSkill {
                 }
             }
         }
-    }
-
-    private double ceRatio() {
-        double max = caster.cursedEnergy.getMax();
-        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
     }
 
     /** 시전자의 활성 결없영(isOpen=true) MizushiDomainExpansion 을 반환. 없으면 null. */

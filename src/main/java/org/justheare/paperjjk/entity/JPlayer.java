@@ -14,11 +14,9 @@ import org.justheare.paperjjk.technique.MizushiTechnique;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.justheare.paperjjk.barrier.DomainExpansion;
-import org.justheare.paperjjk.cursed.ChargingRequest;
 import org.justheare.paperjjk.innate.InnateTerritory;
 import org.justheare.paperjjk.network.JPacketSender;
 import org.justheare.paperjjk.network.PacketIds;
-import org.justheare.paperjjk.skill.ActiveSkill;
 import org.justheare.paperjjk.skill.SkillKey;
 import org.justheare.paperjjk.skill.SkillKeyMap;
 import org.justheare.paperjjk.skill.SkillSlot;
@@ -29,7 +27,6 @@ import org.justheare.paperjjk.technique.Technique;
 import org.bukkit.Location;
 
 import javax.annotation.Nullable;
-import java.util.List;
 
 /**
  * 플레이어 주술사. JEntity 구현체.
@@ -137,17 +134,26 @@ public class JPlayer extends JEntity {
         }
     }
 
+    /** 신체강화 가중치 = 1.0 (스킬과 동등하게 CE 분배 참여) */
+    @Override
+    protected double getAdditionalChargeWeight() {
+        return (bodyReinKeyHeld && bodyReinforcement.getMax() > 0) ? 1.0 : 0;
+    }
+
     /**
-     * 신체강화 CE 소비를 분배 시스템에 포함.
-     * 틱당 요청량 = bodyReinforcement.max * 5% (20틱에 가득 참).
+     * 신체강화에 perUnit CE 를 분배하고 실제 소모량 반환.
+     * 충전 속도 상한: bodyReinMax × 5%/틱 (20틱에 풀 충전).
+     * CE 소모량 = 실제 충전량 (에너지 보존).
      */
     @Override
-    protected void addAdditionalChargeRequests(List<ChargingRequest> requests) {
-        if (bodyReinKeyHeld && bodyReinforcement.getMax() > 0) {
-            bodyReinforcement.startCharging(bodyReinKeyMode); // mode가 NONE으로 리셋된 경우 재설정
-            double perTick = bodyReinforcement.getMax() * 0.05;
-            requests.add(new ChargingRequest(bodyReinforcement::addCharge, perTick));
-        }
+    protected double distributeAdditional(double perUnit) {
+        if (!bodyReinKeyHeld || bodyReinforcement.getMax() <= 0) return 0;
+        bodyReinforcement.startCharging(bodyReinKeyMode);
+        double maxChargePerTick = bodyReinforcement.getMax() * 0.05; // 20틱 충전 속도 상한
+        double space  = bodyReinforcement.getMax() - bodyReinforcement.getCurrent();
+        double actual = Math.min(Math.min(perUnit, maxChargePerTick), space);
+        bodyReinforcement.addCharge(actual);
+        return actual;
     }
 
     // ── 영역전개 ──────────────────────────────────────────────────────────

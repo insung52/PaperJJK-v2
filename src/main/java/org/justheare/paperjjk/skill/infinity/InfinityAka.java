@@ -41,8 +41,8 @@ public class InfinityAka extends ActiveSkill {
 
     // ── 상수 ──────────────────────────────────────────────────────────────
 
-    private static final double PER_TICK_CHARGE       = 5.0;
-    private static final double POWER_PER_CHARGE_TICK = 1.0;
+    /** 충전 CE → 파워 변환 스케일. grade3 풀충전≈2000CE → 파워≈100. 튜닝용. */
+    private static final double POWER_SCALE           = 10000.0;
     private static final double VISUAL_RANGE          = 1000.0;
     private static final int    SYNC_INTERVAL         = 5;
     private static final int    CHARGE_SOUND_INTERVAL = 5;
@@ -79,10 +79,14 @@ public class InfinityAka extends ActiveSkill {
 
     private final String uniqueId;
 
+    /** 충전 첫 틱에 캡처한 CE 비율 — 파워 확정에 사용 */
+    private double snapshotCeRatio = 1.0;
+
     // ── 생성자 ────────────────────────────────────────────────────────────
 
     public InfinityAka(JEntity caster) {
-        super(caster, PER_TICK_CHARGE);
+        super(caster);
+        this.chargeWeight = 2.0; // Ao의 2배 CE 소모
         this.uniqueId = "AKA_" + System.nanoTime();
         if (caster instanceof JPlayer jp) {
             akaLocation = gazeLocation(jp.player);
@@ -114,8 +118,7 @@ public class InfinityAka extends ActiveSkill {
             akaPacketActive = true;
         }
 
-        // 붉은 DUST 파티클
-        double cp = Math.max(1.0, chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio());
+        double cp = Math.max(0.1, chargeBuffer / POWER_SCALE);
         spawnChargingParticles(cp);
 
         // AKA_SYNC: 충전 중 파워 미리보기 → 클라이언트 왜곡 강도 업데이트
@@ -140,8 +143,8 @@ public class InfinityAka extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
 
-        remainingPower = Math.max(1.0,
-                Math.min(100.0, chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio()));
+        double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        remainingPower = Math.max(0.1, chargeBuffer * efficiency / POWER_SCALE);
         chargeDurationTicks = 0;
         chargeSoundTick = 0;
         syncTick = 0;
@@ -235,7 +238,7 @@ public class InfinityAka extends ActiveSkill {
 
             if (activeTick % 4 == 0 && entity instanceof LivingEntity living) {
                 entity.setVelocity(entity.getVelocity().add(
-                        direction.clone().multiply(new Vector(1, 0.5, 1)).multiply(0.2)));
+                        direction.clone().multiply(Math.pow(remainingPower, 0.01))));
                 applyAkaDamage(living, Math.pow(remainingPower, 0.3));
             }
         }
@@ -255,9 +258,9 @@ public class InfinityAka extends ActiveSkill {
                     + entity.getHeight() + entity.getWidth();
             if (entity.getLocation().distance(akaLocation) <= hitRadius) {
                 trackedEntities.put(entity.getUniqueId(), 10);
-                entity.setVelocity(entity.getVelocity().add(direction.clone().multiply(7)));
+                entity.setVelocity(entity.getVelocity().add(direction.clone().multiply(0.1+Math.pow(remainingPower, 0.1))));
                 if (entity instanceof LivingEntity living) {
-                    applyAkaDamage(living, (10 + Math.pow(remainingPower, 1.0))*100);
+                    applyAkaDamage(living, (1+Math.pow(remainingPower, 1.0))*100);
                 }
             }
         }
@@ -322,11 +325,6 @@ public class InfinityAka extends ActiveSkill {
 
     // ── 파티클 ────────────────────────────────────────────────────────────
 
-    private double ceRatio() {
-        double max = caster.cursedEnergy.getMax();
-        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
-    }
-
     private void spawnChargingParticles(double cp) {
         Particle.DustOptions dust = new Particle.DustOptions(Color.RED, 0.2F);
         akaLocation.getWorld().spawnParticle(Particle.DUST, akaLocation,
@@ -343,8 +341,7 @@ public class InfinityAka extends ActiveSkill {
     @Override
     public float getGaugePercent() {
         return switch (getPhase()) {
-            case CHARGING -> (float) Math.min(1.0,
-                    chargeDurationTicks * POWER_PER_CHARGE_TICK / 100.0);
+            case CHARGING -> (float) Math.min(1.0, chargeBuffer / POWER_SCALE / 100.0);
             case ACTIVE   -> (float) Math.max(0.0, remainingPower / 100.0);
             case ENDED    -> 0.0f;
         };

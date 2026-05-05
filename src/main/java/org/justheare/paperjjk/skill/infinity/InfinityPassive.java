@@ -15,60 +15,43 @@ import org.justheare.paperjjk.entity.JPlayer;
 import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.skill.ActiveSkill;
+import org.justheare.paperjjk.skill.SkillPhase;
 
 import java.util.List;
 
 /**
  * 무한(Infinity) 패시브 — 상시 결계(Barrier).
  *
- * chargeable=true, rechargeable=true.
+ * CE 흐름:
+ *   - 충전 중(키 홀드): distribution 시스템이 chargeBuffer 를 채움
+ *   - 발동 중(키 뗌): chargeBuffer 가 틱마다 감소, 0이 되면 종료
+ *   - 재충전(키 재홀드): chargeBuffer 다시 채움 (기존 버퍼에 누적)
  *
- * 최초 활성화 시 파워 1로 즉시 시작.
- * 재충전(키 홀드) 중: 파워 상승, 충전 사운드 재생.
- * 발동 중(키 뗌): 파워 서서히 감소 → MIN_POWER(1) 유지.
- * 항상 현재 파워에 비례해 CE 소모. CE 고갈 시 자동 종료.
+ * 결계 강도 = chargeBuffer / POWER_SCALE (0~100 스케일 기준)
  *
- * 반경 = 1 + sqrt(power) * 0.4 블록 (파워 1 ≈ 1.4m, 파워 100 ≈ 5m).
+ * POWER_SCALE 튜닝: grade3 풀충전(≈2000CE) 시 강도≈100 이 되도록 설정.
  */
 public class InfinityPassive extends ActiveSkill {
 
-    // ── 상수 ──────────────────────────────────────────────────────────────
+    /** 충전 CE → 파워 변환 스케일. 튜닝용. */
+    private static final double POWER_SCALE = 5000.0;
 
-    /** 재충전 틱당 파워 증가 (100틱 = 5초에 최대 파워 도달) */
-    private static final double POWER_PER_CHARGE_TICK = 3.0;
+    /** 발동 중 틱당 chargeBuffer 감소량 (CE 단위). 튜닝용. */
+    private static final double DECAY_PER_TICK = 30.0;
 
-    /** 발동 중 틱당 파워 감소 (파워 100 → 1: 약 33초) */
-    private static final double POWER_DECAY_PER_TICK  = 1.5;
-
-    private static final double MIN_POWER = 1.0;
-    private static final double MAX_POWER = 100.0;
-
-    /** 파워 1당 틱당 CE 소모 (항상 적용) */
-    private static final double CE_PER_POWER_PER_TICK = 0.05;
-
-    /** 충전 사운드 재생 주기 (틱) */
     private static final int CHARGE_SOUND_INTERVAL = 5;
 
     // ── 상태 ──────────────────────────────────────────────────────────────
 
-    /** 현재 파워 (1~100) */
-    private double power = MIN_POWER;
-
-    /** 현재 충전 단계의 경과 틱 */
-    private int chargeDurationTicks = 0;
-
-    private int chargeSoundTick = 0;
-    private int tickCount = 0;
+    private int  chargeSoundTick = 0;
+    private int  tickCount       = 0;
     private boolean isRecharging = false;
 
     // ── 생성자 ────────────────────────────────────────────────────────────
 
-    /**
-     * perTickChargeRequest=0: CE 분배 시스템은 사용하지 않고
-     * consume() 직접 호출로 파워 비례 소모 처리.
-     */
     public InfinityPassive(JEntity caster) {
-        super(caster, 0);
+        super(caster);
+        this.chargeBufferMax = Double.MAX_VALUE;
     }
 
     // ── 재충전 ────────────────────────────────────────────────────────────
@@ -76,9 +59,11 @@ public class InfinityPassive extends ActiveSkill {
     @Override
     public void startRecharging() {
         isRecharging = true;
-        chargeDurationTicks = 0;
         chargeSoundTick = 0;
-        super.startRecharging(); // phase = CHARGING, accumulatedCharge = 0
+        // chargeBuffer 초기화 없이 그대로 유지 → 기존 버퍼에 추가 충전
+        if (phase == SkillPhase.ACTIVE) {
+            phase = SkillPhase.CHARGING;
+        }
     }
 
     // ── 생명주기 ──────────────────────────────────────────────────────────
@@ -88,25 +73,14 @@ public class InfinityPassive extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
 
-        chargeDurationTicks++;
         chargeSoundTick++;
 
-        // 파워 증가 (CE 비율 반영)
-        double cr = ceRatio();
-        if (isRecharging) {
-            power = Math.min(MAX_POWER, power + POWER_PER_CHARGE_TICK * cr);
-        } else {
-            // 최초 충전: 틱 비례 파워 (빠른 탭 → MIN에 고정)
-            power = Math.max(MIN_POWER, chargeDurationTicks * POWER_PER_CHARGE_TICK * cr);
-        }
-
-        // CE 소모 (파워 비례, 항상)
-        if (!drainCE(jp)) return;
+        double power = chargeBuffer / POWER_SCALE;
 
         // 충전 사운드
         if (chargeSoundTick % CHARGE_SOUND_INTERVAL == 0) {
-            float vol   = (float) (power / 100.0);
-            float pitch = (float) (power / 100.0 * 1.5 + 0.5);
+            float vol   = (float) Math.min(1.0, power / 100.0);
+            float pitch = (float) (Math.min(1.0, power / 100.0) * 1.5 + 0.5);
             p.getWorld().playSound(p.getLocation(),
                     Sound.BLOCK_TRIAL_SPAWNER_ABOUT_TO_SPAWN_ITEM, vol, pitch);
         }
@@ -114,16 +88,13 @@ public class InfinityPassive extends ActiveSkill {
         // 결계 효과 (충전 중에도 동작)
         tickCount++;
         Location eyeLoc = p.getEyeLocation();
-        //if (tickCount % 4 == 0) clearFireLava(eyeLoc);
         processEntities(p, eyeLoc);
     }
 
     @Override
     protected void onCharged() {
         isRecharging = false;
-        chargeDurationTicks = 0;
         chargeSoundTick = 0;
-        if (power < MIN_POWER) power = MIN_POWER;
     }
 
     @Override
@@ -131,17 +102,15 @@ public class InfinityPassive extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
 
-        // 파워 감소 → MIN_POWER 유지
-        if (power > MIN_POWER) {
-            power = Math.max(MIN_POWER, power - POWER_DECAY_PER_TICK);
+        // chargeBuffer 감소 → 0이면 종료
+        chargeBuffer = Math.max(0, chargeBuffer - DECAY_PER_TICK);
+        if (chargeBuffer <= 0) {
+            end();
+            return;
         }
-
-        // CE 소모
-        if (!drainCE(jp)) return;
 
         tickCount++;
         Location eyeLoc = p.getEyeLocation();
-        //if (tickCount % 4 == 0) clearFireLava(eyeLoc);
         processEntities(p, eyeLoc);
     }
 
@@ -153,45 +122,17 @@ public class InfinityPassive extends ActiveSkill {
         }
     }
 
-    // ── CE 소모 ───────────────────────────────────────────────────────────
-
-    private double ceRatio() {
-        double max = caster.cursedEnergy.getMax();
-        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
-    }
-
-    private boolean drainCE(JPlayer jp) {
-        if (!jp.cursedEnergy.consume(power * CE_PER_POWER_PER_TICK)) {
-            end();
-            return false;
-        }
-        return true;
-    }
-
     // ── 결계 로직 ─────────────────────────────────────────────────────────
 
-    /** 반경 = 1 + sqrt(power) * 0.4 (파워 1≈1.4, 파워100≈5) */
     private double currentRadius() {
-        return 1.0 + Math.sqrt(power) * 0.4;
-    }
-
-    private void clearFireLava(Location center) {
-        for (int rx = -2; rx <= 2; rx++) {
-            for (int ry = -2; ry <= 2; ry++) {
-                for (int rz = -2; rz <= 2; rz++) {
-                    Location bl = center.clone().add(rx, ry, rz);
-                    Material m = bl.getBlock().getType();
-                    if (m == Material.LAVA || m == Material.FIRE) {
-                        bl.getBlock().setType(Material.AIR);
-                    }
-                }
-            }
-        }
+        double power = chargeBuffer / POWER_SCALE;
+        return 1.0 + Math.sqrt(Math.max(0, power)) * 0.4;
     }
 
     private void processEntities(Player user, Location center) {
         double radius = currentRadius();
         List<Entity> nearby = (List<Entity>) center.getNearbyEntities(radius + 1, radius + 1, radius + 1);
+        double power = chargeBuffer / POWER_SCALE;
 
         for (Entity entity : nearby) {
             if (entity.equals(user)) continue;
@@ -205,26 +146,23 @@ public class InfinityPassive extends ActiveSkill {
             if (dist > adjustedRadius + 1) continue;
 
             if (dist < adjustedRadius - 1) {
-                // 안쪽 영역: 바깥으로 밀기
                 Vector pushDir = entityCenter.toVector().subtract(center.toVector());
                 if (pushDir.length() > 0.01) {
                     entity.setVelocity(pushDir.normalize().multiply(0.3));
                 }
-                // 중심에 매우 가까우면 주력 데미지 (3틱마다)
                 if (dist < adjustedRadius - 3 && tickCount % 3 == 0
                         && entity instanceof LivingEntity living) {
-                    applyPassiveDamage(living, dist);
+                    applyPassiveDamage(living, dist, power);
                 }
                 spawnBarrierParticle(center, entityCenter, radius);
             } else {
-                // 경계 구간: 속도 감쇄
                 entity.setVelocity(entity.getVelocity().multiply(0.2));
                 spawnBarrierParticle(center, entityCenter, radius);
             }
         }
     }
 
-    private void applyPassiveDamage(LivingEntity living, double dist) {
+    private void applyPassiveDamage(LivingEntity living, double dist, double power) {
         double output = (Math.pow(dist + 0.5, -0.5) + 1) * Math.pow(power, 0.3);
         JEntity targetEntity = JEntityManager.instance != null
                 ? JEntityManager.instance.get(living.getUniqueId()) : null;
@@ -236,7 +174,6 @@ public class InfinityPassive extends ActiveSkill {
         }
     }
 
-    /** 결계 표면 위 엔티티 방향에 ELECTRIC_SPARK 파티클 */
     private void spawnBarrierParticle(Location center, Location entityCenter, double radius) {
         Vector dir = entityCenter.toVector().subtract(center.toVector());
         if (dir.length() < 0.01) return;
@@ -246,15 +183,14 @@ public class InfinityPassive extends ActiveSkill {
 
     // ── HUD ───────────────────────────────────────────────────────────────
 
-    /** 현재 파워 비율 (0~1) */
     @Override
     public float getGaugePercent() {
-        return (float) (power / MAX_POWER);
+        return (float) Math.min(1.0, chargeBuffer / POWER_SCALE / 100.0);
     }
 
     @Override
     public byte getSlotGaugeState() {
-        return switch (getPhase()) {
+        return switch (phase) {
             case CHARGING -> isRecharging
                     ? PacketIds.SlotGaugeState.RECHARGING
                     : PacketIds.SlotGaugeState.CHARGING;
