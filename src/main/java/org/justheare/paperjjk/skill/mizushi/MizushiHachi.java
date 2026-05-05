@@ -73,11 +73,12 @@ public class MizushiHachi extends ActiveSkill {
         chargeDurationTicks++;
         chargeSoundTick++;
 
+        double cr = ceRatio();
         if (isRecharging) {
-            power = Math.min(MAX_POWER, power + POWER_PER_CHARGE_TICK);
+            power = Math.min(MAX_POWER, power + POWER_PER_CHARGE_TICK * cr);
         } else {
-            // 최초 충전: 틱 비례로 파워 증가
-            power = Math.min(MAX_POWER, chargeDurationTicks * POWER_PER_CHARGE_TICK);
+            // 최초 충전: 틱 비례로 파워 증가 (CE 비율 반영)
+            power = Math.min(MAX_POWER, chargeDurationTicks * POWER_PER_CHARGE_TICK * cr);
         }
 
         if (!drainCE(jp)) return;
@@ -129,7 +130,12 @@ public class MizushiHachi extends ActiveSkill {
         }
     }
 
-    // ── CE 소모 ───────────────────────────────────────────────────────────
+    // ── CE 소모 / CE 비율 ──────────────────────────────────────────────────
+
+    private double ceRatio() {
+        double max = caster.cursedEnergy.getMax();
+        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
+    }
 
     private boolean drainCE(JPlayer jp) {
         if (!jp.cursedEnergy.consume(power * CE_PER_POWER_PER_TICK)) {

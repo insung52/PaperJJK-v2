@@ -116,10 +116,15 @@ public class InfinityAo extends ActiveSkill {
         }
     }
 
-    /** 현재 충전 단계의 파워 추정치 (사운드 볼륨/피치 계산용) */
+    /** 현재 충전 단계의 파워 추정치 (사운드 볼륨/피치 계산용). CE 비율 반영. */
     private double currentPowerEstimate() {
-        double chargePower = chargeDurationTicks * POWER_PER_CHARGE_TICK;
+        double chargePower = chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio();
         return isRecharging ? Math.min(100, remainingPower + chargePower) : chargePower;
+    }
+
+    private double ceRatio() {
+        double max = caster.cursedEnergy.getMax();
+        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
     }
 
     // ── 생명주기 ──────────────────────────────────────────────────────────
@@ -190,7 +195,7 @@ public class InfinityAo extends ActiveSkill {
             smoothMoveToward(gazeLocation(p));
         }
 
-        double chargedPower = Math.min(100.0, chargeDurationTicks * POWER_PER_CHARGE_TICK);
+        double chargedPower = Math.min(100.0, chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio());
 
         if (isRecharging) {
             // 재충전 완료: 현재 파워에 추가

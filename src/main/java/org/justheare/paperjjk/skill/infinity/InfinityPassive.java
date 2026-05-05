@@ -91,12 +91,13 @@ public class InfinityPassive extends ActiveSkill {
         chargeDurationTicks++;
         chargeSoundTick++;
 
-        // 파워 증가
+        // 파워 증가 (CE 비율 반영)
+        double cr = ceRatio();
         if (isRecharging) {
-            power = Math.min(MAX_POWER, power + POWER_PER_CHARGE_TICK);
+            power = Math.min(MAX_POWER, power + POWER_PER_CHARGE_TICK * cr);
         } else {
-            // 최초 충전: 틱 비례 파워 (빠른 탭 → 1에 고정)
-            power = Math.max(MIN_POWER, chargeDurationTicks * POWER_PER_CHARGE_TICK);
+            // 최초 충전: 틱 비례 파워 (빠른 탭 → MIN에 고정)
+            power = Math.max(MIN_POWER, chargeDurationTicks * POWER_PER_CHARGE_TICK * cr);
         }
 
         // CE 소모 (파워 비례, 항상)
@@ -153,6 +154,11 @@ public class InfinityPassive extends ActiveSkill {
     }
 
     // ── CE 소모 ───────────────────────────────────────────────────────────
+
+    private double ceRatio() {
+        double max = caster.cursedEnergy.getMax();
+        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
+    }
 
     private boolean drainCE(JPlayer jp) {
         if (!jp.cursedEnergy.consume(power * CE_PER_POWER_PER_TICK)) {

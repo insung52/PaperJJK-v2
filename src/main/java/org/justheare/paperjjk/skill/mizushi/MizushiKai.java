@@ -261,6 +261,11 @@ public class MizushiKai extends ActiveSkill {
         }
     }
 
+    private double ceRatio() {
+        double max = caster.cursedEnergy.getMax();
+        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
+    }
+
     private static Vector perpendicularTo(Vector v) {
         Vector ref = Math.abs(v.getY()) < 0.9 ? new Vector(0, 1, 0) : new Vector(1, 0, 0);
         return v.clone().crossProduct(ref).normalize();

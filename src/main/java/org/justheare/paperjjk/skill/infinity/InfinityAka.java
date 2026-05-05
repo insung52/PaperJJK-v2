@@ -115,7 +115,7 @@ public class InfinityAka extends ActiveSkill {
         }
 
         // 붉은 DUST 파티클
-        double cp = Math.max(1.0, chargeDurationTicks * POWER_PER_CHARGE_TICK);
+        double cp = Math.max(1.0, chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio());
         spawnChargingParticles(cp);
 
         // AKA_SYNC: 충전 중 파워 미리보기 → 클라이언트 왜곡 강도 업데이트
@@ -141,7 +141,7 @@ public class InfinityAka extends ActiveSkill {
         Player p = jp.player;
 
         remainingPower = Math.max(1.0,
-                Math.min(100.0, chargeDurationTicks * POWER_PER_CHARGE_TICK));
+                Math.min(100.0, chargeDurationTicks * POWER_PER_CHARGE_TICK * ceRatio()));
         chargeDurationTicks = 0;
         chargeSoundTick = 0;
         syncTick = 0;
@@ -321,6 +321,11 @@ public class InfinityAka extends ActiveSkill {
     }
 
     // ── 파티클 ────────────────────────────────────────────────────────────
+
+    private double ceRatio() {
+        double max = caster.cursedEnergy.getMax();
+        return max <= 0 ? 0 : Math.sqrt(caster.cursedEnergy.getCurrent() / max);
+    }
 
     private void spawnChargingParticles(double cp) {
         Particle.DustOptions dust = new Particle.DustOptions(Color.RED, 0.2F);
