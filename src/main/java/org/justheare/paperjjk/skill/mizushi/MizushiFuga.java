@@ -37,8 +37,8 @@ public class MizushiFuga extends ActiveSkill {
     private static final int    MIN_CHARGE_TICKS  = 20;
     /** 게이지 100% 기준 충전 틱 */
     private static final int    MAX_CHARGE_TICKS  = 100;
-    /** 발사 후 최대 비행 틱 */
-    private static final int    MAX_FLIGHT_TICKS  = 100;
+    /** N틱마다 remainingPower 1 감소 (Ao와 동일 방식). 튜닝용. */
+    private static final int    DECAY_INTERVAL    = 5;
     private static final int    STEPS_PER_TICK    = 5;
     private static final double STEP_DIST         = 1.5;
 
@@ -69,7 +69,10 @@ public class MizushiFuga extends ActiveSkill {
 
     private Location projectilePos;
     private Vector   projectileDir;
-    private int      flightTick = 0;
+
+    private double remainingPower  = 0;
+    private double initialFugaPower = 1.0;
+    private int    syncTick        = 0;
 
     public MizushiFuga(JEntity caster) {
         super(caster);
@@ -138,6 +141,8 @@ public class MizushiFuga extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
         fugaPower = Math.max(0.1, chargeBuffer * efficiency / POWER_SCALE);
+        remainingPower  = fugaPower;
+        initialFugaPower = fugaPower;
         projectilePos = jp.player.getEyeLocation().clone();
     }
 
@@ -165,9 +170,9 @@ public class MizushiFuga extends ActiveSkill {
             projectileDir = projectilePos.getDirection().normalize().multiply(STEP_DIST);
         }
 
-        // 비행
-        flightTick++;
-        if (flightTick >= MAX_FLIGHT_TICKS) { end(); return; }
+        // remainingPower 감소 → 0 이하면 만료
+        if (++syncTick % DECAY_INTERVAL == 0) remainingPower--;
+        if (remainingPower <= 0) { end(); return; }
 
         // 결없영 진입 체크 (비행 중 매 틱, 루프 밖에서 1회만 조회)
         MizushiDomainExpansion openDomain = getCasterOpenDomain();
@@ -308,7 +313,8 @@ public class MizushiFuga extends ActiveSkill {
                     ? (float) Math.min(1.0, chargeBuffer / chargeBufferMax) : 0f;
             case ACTIVE -> {
                 if (!launched) yield Math.min(1f, (float)(chargeTick + waitTick) / MIN_CHARGE_TICKS);
-                yield 1f - (float) flightTick / MAX_FLIGHT_TICKS;
+                yield initialFugaPower > 0
+                        ? (float) Math.max(0.0, remainingPower / initialFugaPower) : 0f;
             }
             case ENDED -> 0f;
         };

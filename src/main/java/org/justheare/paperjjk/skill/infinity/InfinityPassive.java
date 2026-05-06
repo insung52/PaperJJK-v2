@@ -33,7 +33,7 @@ import java.util.List;
 public class InfinityPassive extends ActiveSkill {
 
     /** 충전 CE → 파워 변환 스케일. 튜닝용. */
-    private static final double POWER_SCALE = 2000.0;
+    private static final double POWER_SCALE = 5000.0;
 
     /** 기본 활성 파워 (충전 없이도 항상 유지) */
     private static final double BASE_POWER = 1.0;
@@ -42,7 +42,7 @@ public class InfinityPassive extends ActiveSkill {
     private static final double DECAY_PER_TICK = 0.5;
 
     /** 기본 CE 소모율: maxOutput × 이 비율/틱. 튜닝용. */
-    private static final double BASE_DRAIN_RATIO = 0.05;
+    private static final double BASE_DRAIN_RATIO = 1;
 
     private static final int CHARGE_SOUND_INTERVAL = 5;
     private static final int DAMAGE_INTERVAL = 3;
@@ -60,7 +60,6 @@ public class InfinityPassive extends ActiveSkill {
 
     public InfinityPassive(JEntity caster) {
         super(caster);
-        this.chargeBufferMax = Double.MAX_VALUE;
     }
 
     // ── 재충전 (ACTIVE 중 키 재홀드) ─────────────────────────────────────
@@ -70,7 +69,8 @@ public class InfinityPassive extends ActiveSkill {
         isRecharging = true;
         chargeSoundTick = 0;
         if (phase == SkillPhase.ACTIVE) {
-            // chargeBuffer 초기화 없이 CHARGING으로 전환 (기존 remainingPower 유지)
+            double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+            chargeBuffer = remainingPower * POWER_SCALE / efficiency;
             phase = SkillPhase.CHARGING;
         }
     }
@@ -87,8 +87,7 @@ public class InfinityPassive extends ActiveSkill {
         tickCount++;
 
         // 기본 CE 소모 (기본 결계 유지 비용)
-        double baseDrain = caster.cursedEnergy.getMaxOutput(1.0) * BASE_DRAIN_RATIO;
-        caster.cursedEnergy.rawForceConsume(baseDrain);
+        caster.cursedEnergy.rawForceConsume(BASE_DRAIN_RATIO);
         if (caster.cursedEnergy.getCurrent() <= 0) { end(); return; }
 
         // 충전 사운드
@@ -113,7 +112,7 @@ public class InfinityPassive extends ActiveSkill {
         chargeSoundTick = 0;
 
         double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
-        remainingPower += chargeBuffer * efficiency / POWER_SCALE;
+        remainingPower = chargeBuffer * efficiency / POWER_SCALE;
         // chargeBuffer는 stopCharging()에서 0으로 초기화됨
     }
 
@@ -125,12 +124,11 @@ public class InfinityPassive extends ActiveSkill {
         Player p = jp.player;
 
         // 기본 CE 소모
-        double baseDrain = caster.cursedEnergy.getMaxOutput(1.0) * BASE_DRAIN_RATIO;
-        caster.cursedEnergy.rawForceConsume(baseDrain);
+        caster.cursedEnergy.rawForceConsume(BASE_DRAIN_RATIO);
         if (caster.cursedEnergy.getCurrent() <= 0) { end(); return; }
 
         // 추가 파워 감소 (0 이하가 되면 기본 상태, 종료하지 않음)
-        remainingPower = Math.max(0, remainingPower - DECAY_PER_TICK);
+        remainingPower = Math.max(0, remainingPower - DECAY_PER_TICK - remainingPower * 0.004);
 
         tickCount++;
         double ep = BASE_POWER + remainingPower;
@@ -148,7 +146,7 @@ public class InfinityPassive extends ActiveSkill {
     // ── 결계 로직 ─────────────────────────────────────────────────────────
 
     private double currentRadius(double power) {
-        return 1.0 + Math.sqrt(Math.max(0, power)) * 0.4;
+        return 1.0 + Math.sqrt(Math.max(0, power)) * 0.2;
     }
 
     private void processEntities(Player user, Location center, double power) {
@@ -206,22 +204,12 @@ public class InfinityPassive extends ActiveSkill {
 
     @Override
     public float getGaugePercent() {
-        // 충전 게이지: chargeBuffer / cap
-        // 발동 게이지: remainingPower / maxExpectedPower
         double cap = chargeBufferMax > 0 ? chargeBufferMax : 1;
-        double maxExpectedPower = cap / POWER_SCALE; // 풀충전 시 파워
-
+        double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
         return switch (getPhase()) {
-            case CHARGING -> {
-                double ce = isRecharging
-                        ? remainingPower * POWER_SCALE + chargeBuffer
-                        : chargeBuffer;
-                yield (float) Math.min(1.0, ce / cap);
-            }
-            case ACTIVE -> maxExpectedPower > 0
-                    ? (float) Math.max(0.0, Math.min(1.0, remainingPower / maxExpectedPower))
-                    : 0f;
-            case ENDED -> 0.0f;
+            case CHARGING -> (float) Math.min(1.0, chargeBuffer / cap);
+            case ACTIVE   -> (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / efficiency / cap));
+            case ENDED    -> 0.0f;
         };
     }
 

@@ -79,9 +79,6 @@ public class InfinityAka extends ActiveSkill {
 
     private final String uniqueId;
 
-    /** 충전 첫 틱에 캡처한 CE 비율 — 파워 확정에 사용 */
-    private double snapshotCeRatio = 1.0;
-
     // ── 생성자 ────────────────────────────────────────────────────────────
 
     public InfinityAka(JEntity caster) {
@@ -247,7 +244,7 @@ public class InfinityAka extends ActiveSkill {
 
     /** 최초 충돌: 강한 밀기 + 큰 데미지, 10틱 추적 시작 */
     private void checkEntityCollisions(Player user) {
-        double searchRadius = 5 + Math.pow(remainingPower, 0.7);
+        double searchRadius = 1 + Math.pow(remainingPower, 0.6);
         List<Entity> nearby = (List<Entity>) akaLocation.getNearbyEntities(
                 searchRadius, searchRadius, searchRadius);
 
@@ -344,7 +341,10 @@ public class InfinityAka extends ActiveSkill {
         double cap = chargeBufferMax > 0 ? chargeBufferMax : 1;
         return switch (getPhase()) {
             case CHARGING -> (float) Math.min(1.0, chargeBuffer / cap);
-            case ACTIVE   -> (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / cap));
+            case ACTIVE   -> {
+                double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+                yield (float) Math.max(0.0, Math.min(1.0, remainingPower * POWER_SCALE / efficiency / cap));
+            }
             case ENDED    -> 0.0f;
         };
     }
