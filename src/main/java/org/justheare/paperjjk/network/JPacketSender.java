@@ -524,4 +524,63 @@ public class JPacketSender {
             }
         }
     }
+
+    // ── INFINITY_PASSIVE (0x36-0x39) ──────────────────────────────────────
+
+    public static void broadcastInfinityPassiveActivate(Player caster, float radius, float clientPower, double range) {
+        if (caster.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.INFINITY_PASSIVE_ACTIVATE);
+        out.writeLong(caster.getUniqueId().getMostSignificantBits());
+        out.writeLong(caster.getUniqueId().getLeastSignificantBits());
+        out.writeFloat(radius);
+        out.writeFloat(clientPower);
+        byte[] data = out.toByteArray();
+        for (Player p : caster.getWorld().getPlayers()) {
+            if (p.getLocation().distance(caster.getLocation()) <= range) send(p, data);
+        }
+    }
+
+    public static void broadcastInfinityPassiveSync(Player caster, float radius, float clientPower, double range) {
+        if (caster.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.INFINITY_PASSIVE_SYNC);
+        out.writeLong(caster.getUniqueId().getMostSignificantBits());
+        out.writeLong(caster.getUniqueId().getLeastSignificantBits());
+        out.writeFloat(radius);
+        out.writeFloat(clientPower);
+        byte[] data = out.toByteArray();
+        for (Player p : caster.getWorld().getPlayers()) {
+            if (p.getLocation().distance(caster.getLocation()) <= range) send(p, data);
+        }
+    }
+
+    public static void broadcastInfinityPassiveCollision(Player caster, Location hitPos,
+                                                          float intensity, double range) {
+        if (caster.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.INFINITY_PASSIVE_COLLISION);
+        out.writeLong(caster.getUniqueId().getMostSignificantBits());
+        out.writeLong(caster.getUniqueId().getLeastSignificantBits());
+        out.writeDouble(hitPos.getX());
+        out.writeDouble(hitPos.getY());
+        out.writeDouble(hitPos.getZ());
+        out.writeFloat(intensity);
+        byte[] data = out.toByteArray();
+        for (Player p : caster.getWorld().getPlayers()) {
+            if (p.getLocation().distance(caster.getLocation()) <= range) send(p, data);
+        }
+    }
+
+    public static void broadcastInfinityPassiveDeactivate(Player caster, double range) {
+        if (caster.getWorld() == null) return;
+        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        out.writeByte(PacketIds.INFINITY_PASSIVE_DEACTIVATE);
+        out.writeLong(caster.getUniqueId().getMostSignificantBits());
+        out.writeLong(caster.getUniqueId().getLeastSignificantBits());
+        byte[] data = out.toByteArray();
+        for (Player p : caster.getWorld().getPlayers()) {
+            if (p.getLocation().distance(caster.getLocation()) <= range) send(p, data);
+        }
+    }
 }

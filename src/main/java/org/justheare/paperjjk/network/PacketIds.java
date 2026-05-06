@@ -62,6 +62,16 @@ public class PacketIds {
     // MIZUSHI_THERMOBARIC Format: [packetId(1)][centerX(8)][centerY(8)][centerZ(8)][radius(4)]
     public static final byte MIZUSHI_THERMOBARIC = 0x35; // 열압력탄 폭발 트리거
 
+    // ── Server → Client: Infinity Passive 배리어 ──────────────────────────
+    // ACTIVATE   Format: [packetId(1)][uuidMSB(8)][uuidLSB(8)][radius(4)][power(4)]
+    // SYNC       Format: [packetId(1)][uuidMSB(8)][uuidLSB(8)][radius(4)][power(4)]
+    // COLLISION  Format: [packetId(1)][uuidMSB(8)][uuidLSB(8)][hitX(8)][hitY(8)][hitZ(8)][intensity(4)]
+    // DEACTIVATE Format: [packetId(1)][uuidMSB(8)][uuidLSB(8)]
+    public static final byte INFINITY_PASSIVE_ACTIVATE   = 0x36;
+    public static final byte INFINITY_PASSIVE_SYNC       = 0x37;
+    public static final byte INFINITY_PASSIVE_COLLISION  = 0x38;
+    public static final byte INFINITY_PASSIVE_DEACTIVATE = 0x39;
+
     // ── 양방향 ─────────────────────────────────────────────────────────────
     public static final byte HANDSHAKE = 0x20;
 

@@ -11,7 +11,9 @@ import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.entity.JPlayer;
+import org.justheare.paperjjk.barrier.DomainManager;
 import org.justheare.paperjjk.network.JEntityManager;
+import org.justheare.paperjjk.network.JPacketSender;
 import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.skill.ActiveSkill;
 import org.justheare.paperjjk.skill.SkillPhase;
@@ -47,14 +49,26 @@ public class InfinityPassive extends ActiveSkill {
     private static final int CHARGE_SOUND_INTERVAL = 5;
     private static final int DAMAGE_INTERVAL = 3;
 
+    /** 클라이언트 패킷 동기화 간격 (틱) */
+    private static final int SYNC_INTERVAL = 5;
+
+    /**
+     * 클라이언트 power 정규화 기준 (CE 5천만 풀충전 시 remainingPower 최대값).
+     * = sqrt(50_000_000) * 100 / POWER_SCALE ≈ 141.4
+     */
+    private static final double MAX_REMAINING_POWER = Math.sqrt(50_000_000.0) * 100.0 / POWER_SCALE;
+
     // ── 상태 ──────────────────────────────────────────────────────────────
 
     /** 충전으로 쌓인 추가 파워 (0 이하 = 기본 상태) */
     private double remainingPower = 0;
 
-    private int  chargeSoundTick = 0;
-    private int  tickCount       = 0;
-    private boolean isRecharging = false;
+    private int  chargeSoundTick      = 0;
+    private int  tickCount            = 0;
+    private int  networkSyncTick      = 0;
+    private int  collisionCountThisTick = 0;
+    private boolean isRecharging      = false;
+    private boolean activateSent      = false;
 
     // ── 생성자 ────────────────────────────────────────────────────────────
 
@@ -100,8 +114,20 @@ public class InfinityPassive extends ActiveSkill {
         }
 
         // 결계 효과 (충전 중에도 동작)
-        double ep = BASE_POWER + remainingPower + chargeBuffer / POWER_SCALE;
+        double efficiency = 1.0 + caster.cursedEnergy.getEfficiencyLevel() * 0.01;
+        double ep = BASE_POWER + chargeBuffer * efficiency / POWER_SCALE;
+        collisionCountThisTick = 0;
         processEntities(p, p.getEyeLocation(), ep);
+
+        // 클라이언트 네트워크 동기화
+        if (!activateSent) {
+            activateSent = true;
+            JPacketSender.broadcastInfinityPassiveActivate(
+                p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
+        } else if (++networkSyncTick % SYNC_INTERVAL == 0) {
+            JPacketSender.broadcastInfinityPassiveSync(
+                p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
+        }
     }
 
     // ── 충전 완료 ─────────────────────────────────────────────────────────
@@ -132,7 +158,13 @@ public class InfinityPassive extends ActiveSkill {
 
         tickCount++;
         double ep = BASE_POWER + remainingPower;
+        collisionCountThisTick = 0;
         processEntities(p, p.getEyeLocation(), ep);
+
+        if (++networkSyncTick % SYNC_INTERVAL == 0) {
+            JPacketSender.broadcastInfinityPassiveSync(
+                p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
+        }
     }
 
     @Override
@@ -140,6 +172,10 @@ public class InfinityPassive extends ActiveSkill {
         if (caster instanceof JPlayer jp) {
             jp.player.getWorld().playSound(jp.player.getLocation(),
                     Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 1f, 2f);
+            if (activateSent) {
+                JPacketSender.broadcastInfinityPassiveDeactivate(
+                    jp.player, DomainManager.BROADCAST_RANGE);
+            }
         }
     }
 
@@ -173,10 +209,23 @@ public class InfinityPassive extends ActiveSkill {
                         && entity instanceof LivingEntity living) {
                     applyPassiveDamage(living, dist, power);
                 }
-                spawnBarrierParticle(center, entityCenter, radius);
+                //spawnBarrierParticle(center, entityCenter, radius);
+
+                // COLLISION 패킷 (틱당 최대 3개)
+                if (collisionCountThisTick < 3 && activateSent) {
+                    float speed = (float) entity.getVelocity().length();
+                    float intensity = Math.min(1.0f, speed * 2.0f + 0.2f);
+                    // 충돌 지점 = 배리어 표면 (center → entityCenter 방향)
+                    Vector hitDir = entityCenter.toVector().subtract(center.toVector());
+                    Location hitPos = center.clone().add(
+                        hitDir.length() > 0.01 ? hitDir.normalize().multiply(radius) : new Vector(0, radius, 0));
+                    JPacketSender.broadcastInfinityPassiveCollision(
+                        user, hitPos, intensity, DomainManager.BROADCAST_RANGE);
+                    collisionCountThisTick++;
+                }
             } else {
-                entity.setVelocity(entity.getVelocity().multiply(0.2));
-                spawnBarrierParticle(center, entityCenter, radius);
+                entity.setVelocity(entity.getVelocity().multiply(0.9));
+                //spawnBarrierParticle(center, entityCenter, radius);
             }
         }
     }
@@ -191,6 +240,12 @@ public class InfinityPassive extends ActiveSkill {
         } else {
             living.damage(DamageInfo.outputToDamage(output));
         }
+    }
+
+    /** ep → 클라이언트 power [0.005, 1.0] */
+    private float toClientPower(double ep) {
+        double rp = ep - BASE_POWER;
+        return (float) Math.max(0.005, Math.min(1.0, rp / MAX_REMAINING_POWER));
     }
 
     private void spawnBarrierParticle(Location center, Location entityCenter, double radius) {
