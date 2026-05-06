@@ -6,6 +6,7 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.util.Vector;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
@@ -58,6 +59,12 @@ public class InfinityPassive extends ActiveSkill {
      */
     private static final double MAX_REMAINING_POWER = Math.sqrt(50_000_000.0) * 100.0 / POWER_SCALE;
 
+    /**
+     * 이 값 이상 remainingPower 가 있을 때만 클라이언트 효과 활성화.
+     * 이하에서는 power ≈ 0.005 → 화면에 거의 안 보여 끄나 마나 동일.
+     */
+    private static final double VISUAL_THRESHOLD = 5.0;
+
     // ── 상태 ──────────────────────────────────────────────────────────────
 
     /** 충전으로 쌓인 추가 파워 (0 이하 = 기본 상태) */
@@ -69,6 +76,8 @@ public class InfinityPassive extends ActiveSkill {
     private int  collisionCountThisTick = 0;
     private boolean isRecharging      = false;
     private boolean activateSent      = false;
+    /** 현재 클라이언트에 배리어가 활성화되어 있는지 추적 */
+    private boolean clientVisible     = false;
 
     // ── 생성자 ────────────────────────────────────────────────────────────
 
@@ -119,15 +128,8 @@ public class InfinityPassive extends ActiveSkill {
         collisionCountThisTick = 0;
         processEntities(p, p.getEyeLocation(), ep);
 
-        // 클라이언트 네트워크 동기화
-        if (!activateSent) {
-            activateSent = true;
-            JPacketSender.broadcastInfinityPassiveActivate(
-                p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
-        } else if (++networkSyncTick % SYNC_INTERVAL == 0) {
-            JPacketSender.broadcastInfinityPassiveSync(
-                p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
-        }
+        // 클라이언트 네트워크 동기화 (충전량이 충분할 때만)
+        syncClientVisibility(p, ep);
     }
 
     // ── 충전 완료 ─────────────────────────────────────────────────────────
@@ -161,10 +163,7 @@ public class InfinityPassive extends ActiveSkill {
         collisionCountThisTick = 0;
         processEntities(p, p.getEyeLocation(), ep);
 
-        if (++networkSyncTick % SYNC_INTERVAL == 0) {
-            JPacketSender.broadcastInfinityPassiveSync(
-                p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
-        }
+        syncClientVisibility(p, ep);
     }
 
     @Override
@@ -172,7 +171,8 @@ public class InfinityPassive extends ActiveSkill {
         if (caster instanceof JPlayer jp) {
             jp.player.getWorld().playSound(jp.player.getLocation(),
                     Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 1f, 2f);
-            if (activateSent) {
+            if (clientVisible) {
+                clientVisible = false;
                 JPacketSender.broadcastInfinityPassiveDeactivate(
                     jp.player, DomainManager.BROADCAST_RANGE);
             }
@@ -223,9 +223,11 @@ public class InfinityPassive extends ActiveSkill {
                         user, hitPos, intensity, DomainManager.BROADCAST_RANGE);
                     collisionCountThisTick++;
                 }
-            } else {
-                entity.setVelocity(entity.getVelocity().multiply(0.9));
+            } else if (entity instanceof Projectile){
+                entity.setVelocity(entity.getVelocity().multiply(0.01));
                 //spawnBarrierParticle(center, entityCenter, radius);
+            } else {
+                entity.setVelocity(entity.getVelocity().multiply(0.7));
             }
         }
     }
@@ -239,6 +241,29 @@ public class InfinityPassive extends ActiveSkill {
                     DamageInfo.skillHit(caster, DamageType.CURSED, output, "infinity_passive"));
         } else {
             living.damage(DamageInfo.outputToDamage(output));
+        }
+    }
+
+    /**
+     * remainingPower 가 VISUAL_THRESHOLD 이상이면 클라이언트 효과 활성화/동기화.
+     * 이하로 떨어지면 DEACTIVATE 전송.
+     */
+    private void syncClientVisibility(Player p, double ep) {
+        boolean shouldBeVisible = ep >= VISUAL_THRESHOLD;
+
+        if (shouldBeVisible) {
+            if (!clientVisible) {
+                clientVisible = true;
+                activateSent  = true;
+                JPacketSender.broadcastInfinityPassiveActivate(
+                    p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
+            } else if (++networkSyncTick % SYNC_INTERVAL == 0) {
+                JPacketSender.broadcastInfinityPassiveSync(
+                    p, (float) currentRadius(ep), toClientPower(ep), DomainManager.BROADCAST_RANGE);
+            }
+        } else if (clientVisible) {
+            clientVisible = false;
+            JPacketSender.broadcastInfinityPassiveDeactivate(p, DomainManager.BROADCAST_RANGE);
         }
     }
 
