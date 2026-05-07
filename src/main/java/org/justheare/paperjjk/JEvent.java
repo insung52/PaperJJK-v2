@@ -6,8 +6,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.EntityDeathEvent;
@@ -216,6 +221,27 @@ public class JEvent implements Listener {
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
         mobEnvCooldowns.remove(event.getEntity().getUniqueId());
+    }
+
+    // ── 블록 좌클릭 스킬 트리거 ──────────────────────────────────────────
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        Block block = event.getClickedBlock();
+        if (block == null) return;
+
+        JEntity jEntity = JEntityManager.instance.get(event.getPlayer().getUniqueId());
+        if (jEntity == null) return;
+
+        BlockFace face = event.getBlockFace();
+        for (org.justheare.paperjjk.skill.ActiveSkill skill : jEntity.getActiveSkills()) {
+            if (skill.onLeftClickBlock(block, face)) {
+                event.setCancelled(true);
+                break;
+            }
+        }
     }
 
     // ── 결계 블록 파손 ────────────────────────────────────────────────────

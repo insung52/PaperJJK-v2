@@ -162,6 +162,14 @@ public abstract class ActiveSkill implements SkillExecution {
      */
     public void onAttackLanded(LivingEntity target) {}
 
+    /**
+     * 시전자가 블록을 좌클릭했을 때 호출.
+     * 스킬이 이 이벤트를 소비했으면 true 반환 → JEvent 에서 PlayerInteractEvent 취소.
+     * 호출 시점: JEvent.onPlayerInteract, LEFT_CLICK_BLOCK + 메인 핸드 필터링 후.
+     */
+    public boolean onLeftClickBlock(org.bukkit.block.Block block,
+                                    org.bukkit.block.BlockFace face) { return false; }
+
     // ── HUD 게이지 ────────────────────────────────────────────────────────
 
     public float getGaugePercent() { return 0f; }
