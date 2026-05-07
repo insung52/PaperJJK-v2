@@ -12,6 +12,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
+import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
 import org.justheare.paperjjk.entity.JEntity;
@@ -20,12 +21,7 @@ import org.justheare.paperjjk.network.JEntityManager;
 import org.justheare.paperjjk.network.PacketIds;
 import org.justheare.paperjjk.skill.ActiveSkill;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -53,9 +49,12 @@ public class MizushiHachi extends ActiveSkill {
 
     // ── 블록 확장 상수 ────────────────────────────────────────────────────
 
-    private static final int BFS_PER_TICK    = 15;  // 틱당 BFS 탐색 수
-    private static final int EFFECT_PER_TICK = 4;   // 틱당 효과 처리 수
-    private static final int EFFECT_DELAY    = 10;  // 효과 시작까지 딜레이 (0.5초)
+    private static final int   BFS_PER_TICK  = 150;    // 틱당 BFS 탐색 수
+    private static final int   EFFECT_PER_TICK = 60;  // 틱당 효과 처리 수
+    private static final int   EFFECT_DELAY  = 10;   // 효과 시작까지 딜레이 (0.5초)
+    private static final float BRANCH_PROB     = 0.15f; // 브랜치 발생 확률
+    private static final float SKIP_PROB       = 0.20f; // 균열이 그 자리에서 소멸할 확률
+    private static final int   INITIAL_BRANCHES = 7;   // 시작 균열 개수 (1 = 방향 1개만)
 
     /** 6방향 (솔리드 이웃 체크 + 인접 블록 파괴) */
     private static final int[] DX6 = { 1,-1,0,0,0,0 };
@@ -86,9 +85,9 @@ public class MizushiHachi extends ActiveSkill {
     private int              blockTick    = 0;
     private int              maxSurface;
     private org.bukkit.World expWorld;
-    private final Deque<long[]> bfsQueue    = new ArrayDeque<>();
-    private final Set<Long>     bfsVisited  = new HashSet<>();
-    private final List<long[]>  surface     = new ArrayList<>();
+    private float[]          expFaceNorm  = new float[3]; // 면 법선 (드리프트 회전축)
+    private final Deque<long[]> bfsQueue = new ArrayDeque<>();
+    private final List<long[]>  surface  = new ArrayList<>();
     private int                 effectIdx   = 0;
 
     // ── 생성자 ────────────────────────────────────────────────────────────
@@ -107,7 +106,7 @@ public class MizushiHachi extends ActiveSkill {
         if (!(caster instanceof JPlayer jp)) { end(); return; }
         Player p = jp.player;
 
-        chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 40.0;
+        chargeBufferMax = caster.cursedEnergy.getMaxOutput(1.0) * 80.0;
 
         Location eye = p.getEyeLocation();
         p.getWorld().spawnParticle(Particle.DUST,
@@ -211,15 +210,40 @@ public class MizushiHachi extends ActiveSkill {
         if (hardness < 0) return false;  // 파괴 불가 블록 (bedrock 등)
 
         Block startAir = block.getRelative(face);
-        if (!startAir.isEmpty()) return false;
+        if (!startAir.isEmpty() && !startAir.isLiquid()) return false;
 
         expWorld    = block.getWorld();
-        maxSurface  = Math.max(3, (int)(storedPower * 5));
+        maxSurface  = Math.max(3, (int)(storedPower*0.7));
 
+        // 초기 균열 방향: 플레이어 시선을 면의 법선에 수직인 평면으로 투영
         int sx = startAir.getX(), sy = startAir.getY(), sz = startAir.getZ();
-        bfsVisited.add(blockKey(sx, sy, sz));
-        bfsQueue.add(new long[]{sx, sy, sz});
+        Vector faceNorm = face.getDirection().clone().normalize();
+        expFaceNorm[0] = (float)faceNorm.getX();
+        expFaceNorm[1] = (float)faceNorm.getY();
+        expFaceNorm[2] = (float)faceNorm.getZ();
+        Vector look = ((JPlayer)caster).player.getEyeLocation().getDirection();
+        Vector tangent = look.clone().subtract(faceNorm.clone().multiply(look.dot(faceNorm)));
+        if (tangent.lengthSquared() < 0.001) tangent = randomPerpendicular(faceNorm);
+        tangent.normalize();
+
         if (hasSolidFaceNeighbor(sx, sy, sz)) surface.add(new long[]{sx, sy, sz});
+
+        // 초기 균열: 면 평면 위에서 INITIAL_BRANCHES 개를 등각도로 배치
+        // 각 방향에 5~40도 랜덤 회전을 더해 격자 정렬 방지
+        // (dir 이 faceNorm 에 수직이므로 Rodrigues 식: v_rot = v·cosθ + (n×v)·sinθ)
+        Vector bitangent = faceNorm.clone().crossProduct(tangent).normalize();
+        double step = 2 * Math.PI / INITIAL_BRANCHES;
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        for (int b = 0; b < INITIAL_BRANCHES; b++) {
+            double base  = step * b;
+            double jitter = (rng.nextDouble() * 35 + 5) * Math.PI / 180.0;
+            if (rng.nextBoolean()) jitter = -jitter;
+            double angle = base + jitter;
+            Vector dir = tangent.clone().multiply(Math.cos(angle))
+                    .add(bitangent.clone().multiply(Math.sin(angle)));
+            bfsQueue.add(packNode(sx, sy, sz,
+                    (float)dir.getX(), (float)dir.getY(), (float)dir.getZ()));
+        }
 
         blockMode = true;
         blockTick = 0;
@@ -234,24 +258,84 @@ public class MizushiHachi extends ActiveSkill {
     private void tickBlockMode() {
         blockTick++;
 
-        // BFS 탐색
+        // BFS 탐색 (방향성 균열 브랜칭)
         for (int n = 0; n < BFS_PER_TICK && !bfsQueue.isEmpty() && surface.size() < maxSurface; n++) {
-            long[] pos = bfsQueue.pollFirst();
-            int cx = (int)pos[0], cy = (int)pos[1], cz = (int)pos[2];
+            long[] node = bfsQueue.pollFirst();
+            int cx = (int)node[0], cy = (int)node[1], cz = (int)node[2];
+            float dx = Float.intBitsToFloat((int)node[3]);
+            float dy = Float.intBitsToFloat((int)node[4]);
+            float dz = Float.intBitsToFloat((int)node[5]);
 
-            int start = ThreadLocalRandom.current().nextInt(26);
-            for (int i = 0; i < 26 && surface.size() < maxSurface; i++) {
-                int[] nb = NB26[(start + i) % 26];
+            ThreadLocalRandom rng = ThreadLocalRandom.current();
+
+            // SKIP_PROB: 이번 틱 전이 건너뜀, 다음 틱에 재시도 (균열 길이 자연 편차)
+            if (rng.nextFloat() < SKIP_PROB) { bfsQueue.addLast(node); continue; }
+
+            // 1. 현재 방향에 가장 정렬된 유효 이웃 탐색 (균열 진행)
+            int bestIdx = -1;
+            float bestDot = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < 26; i++) {
+                int[] nb = NB26[i];
                 int nx = cx + nb[0], ny = cy + nb[1], nz = cz + nb[2];
-                long key = blockKey(nx, ny, nz);
-                if (!bfsVisited.add(key)) continue;
-                Block b = expWorld.getBlockAt(nx, ny, nz);
-                if (b.isEmpty() && hasSolidFaceNeighbor(nx, ny, nz)) {
+                Block bnb = expWorld.getBlockAt(nx, ny, nz);
+                if (!bnb.isEmpty() && !bnb.isLiquid()) continue;
+                if (!hasSolidFaceNeighbor(nx, ny, nz)) continue;
+                float len = (float)Math.sqrt(nb[0]*nb[0] + nb[1]*nb[1] + nb[2]*nb[2]);
+                float dot = (nb[0]*dx + nb[1]*dy + nb[2]*dz) / len;
+                if (dot > bestDot) { bestDot = dot; bestIdx = i; }
+            }
+
+            boolean branching = surface.size() < maxSurface && rng.nextFloat() < BRANCH_PROB;
+
+            if (bestIdx >= 0) {
+                int[] nb = NB26[bestIdx];
+                int nx = cx + nb[0], ny = cy + nb[1], nz = cz + nb[2];
+                surface.add(new long[]{nx, ny, nz});
+
+                // 이웃 방향으로 살짝 끌어당겨 방향 갱신
+                float len = (float)Math.sqrt(nb[0]*nb[0] + nb[1]*nb[1] + nb[2]*nb[2]);
+                float ndx = dx + nb[0]/len * 0.3f, ndy = dy + nb[1]/len * 0.3f, ndz = dz + nb[2]/len * 0.3f;
+                float nlen = (float)Math.sqrt(ndx*ndx + ndy*ndy + ndz*ndz);
+                if (nlen > 0.001f) { ndx /= nlen; ndy /= nlen; ndz /= nlen; }
+
+                // 브랜치 발생 시 50% 확률로 직진 방향도 ±30도 드리프트
+                if (branching && rng.nextBoolean()) {
+                    float theta = (float)((rng.nextDouble() * 30.0) * Math.PI / 180.0);
+                    if (rng.nextBoolean()) theta = -theta;
+                    float fnx = expFaceNorm[0], fny = expFaceNorm[1], fnz = expFaceNorm[2];
+                    // Rodrigues (dir ⊥ faceNorm): v_rot = v·cosθ + (n×v)·sinθ
+                    float crsX = fny*ndz - fnz*ndy, crsY = fnz*ndx - fnx*ndz, crsZ = fnx*ndy - fny*ndx;
+                    float cosT = (float)Math.cos(theta), sinT = (float)Math.sin(theta);
+                    ndx = ndx*cosT + crsX*sinT;
+                    ndy = ndy*cosT + crsY*sinT;
+                    ndz = ndz*cosT + crsZ*sinT;
+                    float rlen = (float)Math.sqrt(ndx*ndx + ndy*ndy + ndz*ndz);
+                    if (rlen > 0.001f) { ndx /= rlen; ndy /= rlen; ndz /= rlen; }
+                }
+
+                bfsQueue.addLast(packNode(nx, ny, nz, ndx, ndy, ndz));
+            }
+
+            // 2. 브랜치 (BRANCH_PROB 확률로 랜덤 방향 새 균열 생성)
+            if (branching) {
+                int start = rng.nextInt(26);
+                for (int i = 0; i < 26; i++) {
+                    int[] nb = NB26[(start + i) % 26];
+                    int nx = cx + nb[0], ny = cy + nb[1], nz = cz + nb[2];
+                    long key = blockKey(nx, ny, nz);
+                    Block bnb2 = expWorld.getBlockAt(nx, ny, nz);
+                    if (!bnb2.isEmpty() && !bnb2.isLiquid()) continue;
+                    if (!hasSolidFaceNeighbor(nx, ny, nz)) continue;
                     surface.add(new long[]{nx, ny, nz});
-                    bfsQueue.add(new long[]{nx, ny, nz});
+                    float len = (float)Math.sqrt(nb[0]*nb[0] + nb[1]*nb[1] + nb[2]*nb[2]);
+                    bfsQueue.addLast(packNode(nx, ny, nz, nb[0]/len, nb[1]/len, nb[2]/len));
+                    break;
                 }
             }
         }
+
+        // maxSurface 도달 시 큐 잔여 항목 제거 (미제거 시 isEmpty() 가 영원히 false)
+        if (surface.size() >= maxSurface) bfsQueue.clear();
 
         // 효과 페이즈 (0.5초 딜레이 후)
         if (blockTick >= EFFECT_DELAY) {
@@ -287,17 +371,17 @@ public class MizushiHachi extends ActiveSkill {
             Vector dir = e.getLocation().add(0, e.getHeight() / 2.0, 0)
                     .toVector().subtract(center.toVector());
             if (dir.length() > 0.01) {
-                e.setVelocity(dir.normalize().multiply(0.5 + storedPower * 0.02));
+                e.setVelocity(dir.normalize().multiply(0.34 + Math.pow(storedPower,0.14) * 0.4));
             }
             applyExpansionDamage(living);
         }
 
         // 파티클
-        expWorld.spawnParticle(Particle.SMALL_FLAME, center, 3, 0.2, 0.2, 0.2, 0.01);
+        //expWorld.spawnParticle(Particle.SMALL_FLAME, center, 3, 0.2, 0.2, 0.2, 0.01);
     }
 
     private void applyExpansionDamage(LivingEntity living) {
-        double output = storedPower * 3;
+        double output = storedPower * 0.04;
         JEntity targetJE = JEntityManager.instance != null
                 ? JEntityManager.instance.get(living.getUniqueId()) : null;
         if (targetJE != null) {
@@ -321,6 +405,21 @@ public class MizushiHachi extends ActiveSkill {
             if (!b.isEmpty() && !b.isLiquid()) return true;
         }
         return false;
+    }
+
+    /** BFS 큐 노드 패킹: {x, y, z, dx_bits, dy_bits, dz_bits} */
+    private static long[] packNode(int x, int y, int z, float dx, float dy, float dz) {
+        return new long[]{x, y, z,
+                Float.floatToRawIntBits(dx),
+                Float.floatToRawIntBits(dy),
+                Float.floatToRawIntBits(dz)};
+    }
+
+    /** 법선 벡터에 수직인 임의 방향 반환 */
+    private static Vector randomPerpendicular(Vector normal) {
+        Vector arbitrary = Math.abs(normal.getX()) < 0.9
+                ? new Vector(1, 0, 0) : new Vector(0, 1, 0);
+        return arbitrary.subtract(normal.clone().multiply(arbitrary.dot(normal))).normalize();
     }
 
     private static long blockKey(int x, int y, int z) {
