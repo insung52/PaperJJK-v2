@@ -175,6 +175,10 @@ public class JEvent implements Listener {
                     } finally {
                         mobBonusDamageInProgress.remove(mob.getUniqueId());
                     }
+                    // 물리 타격 성공 시 활성 스킬 공격 트리거 알림
+                    for (org.justheare.paperjjk.skill.ActiveSkill skill : jAttacker.getActiveSkills()) {
+                        skill.onAttackLanded(mob);
+                    }
                     // 주력 타격 강화 디버그 (onAttackMob 완료 후 → 최신 sessionCount 반영)
                     if (bodyReinActive) {
                         int session = jAttacker.blackFlash.getSessionCount();

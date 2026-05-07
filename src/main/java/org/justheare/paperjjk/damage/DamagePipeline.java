@@ -1,7 +1,9 @@
 package org.justheare.paperjjk.damage;
 
+import org.bukkit.entity.LivingEntity;
 import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.entity.JEntity;
+import org.justheare.paperjjk.skill.ActiveSkill;
 
 /**
  * 데미지 처리 3단계 파이프라인.
@@ -50,6 +52,14 @@ public class DamagePipeline {
                 double ratio = info.attacker.blackFlash.getZoneRatio() * 100;
                 p.sendMessage(String.format(
                         "§6[흑섬] 연속: §e%d§6  Zone: §e%.1f%%", session, ratio));
+            }
+        }
+
+        // 물리 타격 성공 시 활성 스킬 공격 트리거 알림
+        if (!result.blocked && info.type == DamageType.PHYSICAL && info.attacker != null) {
+            LivingEntity targetLE = victim.getLivingEntity();
+            for (ActiveSkill skill : info.attacker.getActiveSkills()) {
+                skill.onAttackLanded(targetLE);
             }
         }
 

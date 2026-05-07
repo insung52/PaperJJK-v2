@@ -6,10 +6,12 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
+import org.justheare.paperjjk.PaperJJK;
 import org.justheare.paperjjk.damage.DamageInfo;
 import org.justheare.paperjjk.damage.DamageType;
 import org.justheare.paperjjk.entity.JEntity;
@@ -97,7 +99,7 @@ public class InfinityMurasaki extends ActiveSkill {
                 for (int dy = 0; dy <= radius; dy++) {
                     for (int dz = 0; dz <= radius; dz++) {
                         int dSq = dx*dx + dy*dy + dz*dz;
-                        if (dSq > rM1Sq && dSq <= rSq) {
+                        if (dSq >= rM1Sq && dSq <= rSq) {
                             octant.add(new int[]{dx, dy, dz});
                         }
                     }
@@ -125,9 +127,9 @@ public class InfinityMurasaki extends ActiveSkill {
 
     // ── 상수 ──────────────────────────────────────────────────────────────
 
-    private static final double VISUAL_RANGE   = 2000.0;
-    private static final int    STEPS_PER_TICK = 10;
-    private static final double STEP_SIZE      = 1;
+    private static final double VISUAL_RANGE        = 2000.0;
+    private static final int    STEPS_PER_TICK      = 10;
+    private static final double STEP_SIZE           = 0.4;
 
     // ── 상태 ──────────────────────────────────────────────────────────────
 
@@ -212,20 +214,43 @@ public class InfinityMurasaki extends ActiveSkill {
                     SoundCategory.PLAYERS, 7f, 1.6f);
         }
 
+        double searchR = 1 + Math.pow(power, 0.5);
+
         for (int r = 0; r < STEPS_PER_TICK; r++) {
             murasakiLocation.add(direction.clone().multiply(STEP_SIZE));
+            double yaw = murasakiLocation.getYaw();
+            double pitch = murasakiLocation.getPitch();
+            double step = Math.PI / (Math.pow(power,0.5) * 3.6);
+            for (double theta = 0; theta < Math.PI / 2; theta += step) {
+                double phistep = step / Math.sin(theta == 0 || theta == Math.PI ? step : theta)*0.8;
+                for (double phi = 0; phi < 2 * Math.PI; phi += phistep) {
+                    double x = Math.pow(power,0.5) * Math.sin(theta) * Math.cos(phi);
+                    double y = Math.pow(power,0.5) * Math.sin(theta) * Math.sin(phi);
+                    double z = Math.pow(power,0.5) * Math.cos(theta);
 
-            // 반 구 껍질 형태로 블록 파괴 (진행 방향 기준 전면 반구)
-            breakHemisphereShell(murasakiLocation, power);
+                    //b_location.getWorld().spawnParticle(Particle.REDSTONE, b_location.clone().add(new Vector(x,y,z)), 1, 0.1, 0.1, 0.1, 0.5, dust, true);
+                    Location ttlocation = murasakiLocation.clone().add(new Vector(x, y, z).rotateAroundY(-Math.toRadians(yaw)).rotateAroundX(Math.toRadians(pitch) * Math.cos(Math.toRadians(yaw))).rotateAroundZ(Math.toRadians(pitch) * Math.sin(Math.toRadians(yaw))));
+                    //location.getWorld().spawnParticle(Particle.REDSTONE, tlocation, 1, 0.1, 0.1, 0.1, 0.5, dust, true);
+                    ttlocation.getBlock().setType(Material.AIR);
+                    Block tblock = ttlocation.getBlock();
+                    if(tblock.isEmpty()) continue;
+                    if(tblock.isLiquid()) {
+                        tblock.setType(Material.AIR);
+                        continue;
+                    }
+                    float h = tblock.getType().getHardness();
+                    if (h >= 0 && h < (int) power) tblock.setType(Material.AIR);
 
-            double searchR = 1 + Math.pow(power, 0.5);
+                }
+            }
+
+            // 엔티티 체크
             List<Entity> nearby = (List<Entity>) murasakiLocation.getNearbyEntities(
                     searchR, searchR, searchR);
             for (Entity e : nearby) {
-                if (e.equals(p)) continue;
-                if (hitEntities.contains(e.getUniqueId())) continue;
-                if (murasakiLocation.distance(e.getLocation())
-                        <= searchR + e.getHeight() + e.getWidth()) {
+                if (e.equals(p)) {}
+                else if (hitEntities.contains(e.getUniqueId())) {}
+                else if (murasakiLocation.distance(e.getLocation()) <= searchR + e.getHeight() + e.getWidth()) {
                     hitEntities.add(e.getUniqueId());
                     if (e instanceof LivingEntity living) {
                         applyDamage(living, Math.pow(power, 1.3));
@@ -237,7 +262,7 @@ public class InfinityMurasaki extends ActiveSkill {
         Particle.DustOptions dust = new Particle.DustOptions(
                 Color.PURPLE, (float)(Math.pow(power, 0.9) / 17 + 0.5));
         murasakiLocation.getWorld().spawnParticle(Particle.DUST, murasakiLocation,
-                (int)Math.pow(power, 0.5) + 5,
+                (int)Math.pow(power, 0.2) + 5,
                 Math.log(power + 1) / 3, Math.log(power + 1) / 3, Math.log(power + 1) / 3,
                 0.5, dust, true);
 
@@ -403,52 +428,11 @@ public class InfinityMurasaki extends ActiveSkill {
     }
 
     /**
-     * 진행 방향을 전면으로 하는 반 구 껍질(theta: 0 → π/2) 위의 각 점에서 블록 파괴 시도.
-     *
-     * 구 좌표계 → direction 기준 직교좌표 변환:
-     *   local(lx, ly, lz) = R·sinθ·cosφ·right + R·sinθ·sinφ·up + R·cosθ·fwd
-     *
-     * radius  = sqrt(power)
-     * step    = π / (radius × 3.6)  (구 플러그인과 동일)
-     * phiStep = step / sinθ × 0.8   (위도별 경도 간격 균등화)
-     */
-    private void breakHemisphereShell(Location center, double power) {
-        double radius = Math.pow(power, 0.5);
-        double step   = Math.PI / (radius * 7.0);
-
-        // direction 기준 직교 좌표계 구성
-        Vector fwd = direction.clone().normalize();
-        Vector ref = (Math.abs(fwd.getY()) < 0.9)
-                ? new Vector(0, 1, 0) : new Vector(1, 0, 0);
-        Vector rgt = fwd.clone().crossProduct(ref).normalize();
-        Vector up  = rgt.clone().crossProduct(fwd).normalize();
-
-        for (double theta = 0; theta < Math.PI / 2 + step * 0.5; theta += step) {
-            double sinT    = Math.sin(theta);
-            double cosT    = Math.cos(theta);
-            // theta=0(정면)에서 phi step이 발산하지 않도록 보호
-            double phiStep = (sinT < 0.01) ? Math.PI * 2 : step / sinT * 0.8;
-
-            for (double phi = 0; phi < Math.PI * 2; phi += phiStep) {
-                double lx = radius * sinT * Math.cos(phi);
-                double ly = radius * sinT * Math.sin(phi);
-                double lz = radius * cosT;
-
-                Location blockLoc = center.clone().add(
-                        rgt.clone().multiply(lx)
-                           .add(up.clone().multiply(ly))
-                           .add(fwd.clone().multiply(lz)));
-
-                tryBreakBlock(blockLoc, (int) power);
-            }
-        }
-    }
-
-    /**
      * Phase 1: 블록 경도 읽기만 (수정 없음).
      * 빈 블록 → 0f, 액체 → 0.03f, 파괴불가 → 1000f.
      */
     private float tryBreakBlock(Location loc, int energy) {
+        if (loc.getWorld() == null || !loc.getChunk().isLoaded()) return 0f;
         var block = loc.getBlock();
         if (block.isEmpty()) return 0f;
         if (block.isLiquid()) {

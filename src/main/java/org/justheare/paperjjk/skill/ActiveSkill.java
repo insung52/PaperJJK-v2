@@ -2,6 +2,7 @@ package org.justheare.paperjjk.skill;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.entity.LivingEntity;
 import org.justheare.paperjjk.entity.JEntity;
 import org.justheare.paperjjk.network.PacketIds;
 
@@ -50,7 +51,7 @@ public abstract class ActiveSkill implements SkillExecution {
     private static final int PRIORITY_NORMAL = 1;
 
     /** Phase 2 블록 파괴 큐 */
-    private final List<Location> pendingBreaks = new ArrayList<>();
+    protected final List<Location> pendingBreaks = new ArrayList<>();
 
     public ActiveSkill(JEntity caster) {
         this.caster = caster;
@@ -136,7 +137,9 @@ public abstract class ActiveSkill implements SkillExecution {
         while (it.hasNext() && consumed < budget) {
             Location loc = it.next();
             it.remove();
-            if (loc.getWorld() != null && !loc.getBlock().isEmpty()) {
+            if (loc.getWorld() != null
+                    && loc.getChunk().isLoaded()
+                    && !loc.getBlock().isEmpty()) {
                 loc.getBlock().setType(Material.AIR);
             }
             consumed++;
@@ -150,6 +153,14 @@ public abstract class ActiveSkill implements SkillExecution {
     public void onControl() {}
     public boolean isLocked() { return false; }
     public String getSlotLabel() { return ""; }
+
+    /**
+     * 시전자가 물리 공격(직접 타격)으로 LivingEntity 를 실제로 맞혔을 때 호출.
+     * 공격을 트리거로 사용하는 스킬은 이 메서드를 override 한다.
+     * 호출 시점: DamagePipeline Phase 3 성공(JEntity 대상) 또는
+     *            JEvent.onEntityDamageByEntity onAttackMob(일반 몹 대상) 직후.
+     */
+    public void onAttackLanded(LivingEntity target) {}
 
     // ── HUD 게이지 ────────────────────────────────────────────────────────
 
